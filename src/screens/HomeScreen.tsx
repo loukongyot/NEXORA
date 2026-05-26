@@ -4,23 +4,23 @@ import { CommandPalette } from '../components/CommandPalette'
 import { DashboardCard } from '../components/DashboardCard'
 import { FloatingCreateButton } from '../components/FloatingCreateButton'
 import { InstallPrompt } from '../components/InstallPrompt'
+import { InsightCard } from '../components/InsightCard'
 import { MobileBottomNav } from '../components/MobileBottomNav'
 import { OnboardingFlow } from '../components/OnboardingFlow'
 import { PremiumEmptyState } from '../components/PremiumEmptyState'
-import { QuickActionButton } from '../components/QuickActionButton'
 import { SectionHeader } from '../components/SectionHeader'
 import { SettingsPanel } from '../components/SettingsPanel'
 import { StatsGrid } from '../components/StatsGrid'
 import { Sidebar } from '../components/Sidebar'
 import { SystemModal } from '../components/SystemModal'
-import { TemplatePanel } from '../components/TemplatePanel'
 import type { WorkspaceTemplateName } from '../components/TemplatePanel'
 import { ToastStack } from '../components/ToastStack'
 import type { ToastMessage } from '../components/ToastStack'
 import { Topbar } from '../components/Topbar'
 import { WorkspaceDetailModal } from '../components/WorkspaceDetailModal'
-import { quickActions } from '../data/dashboardData'
+import { insights } from '../data/insightsData'
 import { useWorkspaceSystems } from '../hooks/useWorkspaceSystems'
+import { cloudSyncStatus } from '../lib/supabase'
 import type {
   WorkspaceBackup,
   WorkspaceCategory,
@@ -118,18 +118,31 @@ export function HomeScreen() {
     ['Forms', 'Sheets', 'LINE', 'Apps Script'].includes(system.category),
   )
 
+  const starredSystems = useMemo(() => {
+    const starredMap = new Map<string, WorkspaceSystem>()
+    pinnedSystems.forEach((system) => starredMap.set(system.id, system))
+    favoriteSystems.forEach((system) => starredMap.set(system.id, system))
+
+    return Array.from(starredMap.values()).slice(0, 6)
+  }, [favoriteSystems, pinnedSystems])
+
+  const continueWorkingSystems = useMemo(() => {
+    const activeMap = new Map<string, WorkspaceSystem>()
+
+    recentSystems.forEach((system) => activeMap.set(system.id, system))
+    editedSystems.forEach((system) => activeMap.set(system.id, system))
+    mostUsedSystems.forEach((system) => activeMap.set(system.id, system))
+    dailyWorkspaceSystems.forEach((system) => activeMap.set(system.id, system))
+
+    return Array.from(activeMap.values()).slice(0, 6)
+  }, [dailyWorkspaceSystems, editedSystems, mostUsedSystems, recentSystems])
+
   const stats = [
     { label: 'Systems', tone: 'blue' as const, value: systems.length },
     { label: 'Favorites', tone: 'pink' as const, value: favoriteSystems.length },
     { label: 'Collections', tone: 'purple' as const, value: collections.length },
     { label: 'Recent', tone: 'brown' as const, value: recentSystems.length },
   ]
-  const totalLaunches = systems.reduce(
-    (total, system) => total + system.openCount,
-    0,
-  )
-  const activityTrend = recentSystems.length + editedSystems.length
-
   useEffect(() => {
     localStorage.setItem('nexora.theme.v1', theme)
   }, [theme])
@@ -333,39 +346,6 @@ export function HomeScreen() {
   function focusSearch() {
     setActiveView('Search')
     document.querySelector<HTMLInputElement>('input[type="search"]')?.focus()
-  }
-
-  function handleQuickAction(label: string) {
-    if (label === 'Add System') {
-      openAddModal()
-      return
-    }
-
-    const queryMap: Record<string, string> = {
-      'AI Prompt': 'AI',
-      'Daily Report': 'Daily',
-      'New Form': 'Forms',
-      'New Sheet': 'Sheets',
-    }
-
-    if (label === 'Open Drive') {
-      const driveSystem = systems.find((system) => system.category === 'Drive')
-      if (driveSystem) {
-        handleOpenSystem(driveSystem)
-      } else {
-        setSearchQuery('Drive')
-        setActiveView('Search')
-      }
-      return
-    }
-
-    const query = queryMap[label]
-    if (query) {
-      setSearchQuery(query)
-      commitSearch(query)
-      setActiveView('Search')
-      focusSearch()
-    }
   }
 
   function renderCards(
@@ -642,129 +622,66 @@ export function HomeScreen() {
             </button>
           </div>
 
-          <StatsGrid stats={stats} />
+          <div>
+            <SectionHeader
+              action="Local"
+              eyebrow="Signal"
+              title="Analytics Mini"
+            />
+            <StatsGrid stats={stats} />
+          </div>
         </div>
 
-        <section>
-          <SectionHeader
-            action={searchQuery ? `${filteredSystems.length} found` : 'Saved'}
-            eyebrow="Launch"
-            title="Quick Access"
-          />
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            {quickActions.map((action) => (
-              <QuickActionButton
-                action={action}
-                key={action.label}
-                onClick={() => handleQuickAction(action.label)}
+        <div className="mt-7 grid gap-7 xl:grid-cols-[1fr_0.9fr]">
+          <section>
+            <SectionHeader
+              action={starredSystems.length ? `${starredSystems.length} items` : 'Ready'}
+              eyebrow="Focus"
+              title="Starred"
+            />
+            <div className="grid gap-3 md:grid-cols-2">
+              {renderCards(starredSystems, { dragGroup: 'pinned' })}
+            </div>
+            {starredSystems.length === 0 ? (
+              <PremiumEmptyState
+                action="Add system"
+                message="Pin or favorite your most important workspace links and they will appear here."
+                onAction={openAddModal}
+                title="No starred systems yet"
               />
+            ) : null}
+          </section>
+
+          <section>
+            <SectionHeader
+              action={continueWorkingSystems.length ? 'Live feed' : 'Waiting'}
+              eyebrow="Flow"
+              title="Continue Working"
+            />
+            <div className="grid gap-3 md:grid-cols-2">
+              {renderCards(continueWorkingSystems)}
+            </div>
+            {continueWorkingSystems.length === 0 ? (
+              <PremiumEmptyState
+                message="Recently opened, edited, daily, and most used systems will surface here."
+                title="Nothing active yet"
+              />
+            ) : null}
+          </section>
+        </div>
+
+        <section className="mt-7">
+          <SectionHeader
+            action="Mock feed"
+            eyebrow="Intelligence"
+            title="NEXORA INSIGHTS"
+          />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {insights.map((insight) => (
+              <InsightCard insight={insight} key={insight.id} />
             ))}
           </div>
         </section>
-
-        <div className="mt-7">
-          <TemplatePanel onApplyTemplate={applyTemplate} />
-        </div>
-
-        <div className="mt-7 grid gap-7 xl:grid-cols-[1fr_0.82fr]">
-          <section>
-            <SectionHeader
-              action="Drag to sort"
-              eyebrow="Pinned"
-              title="Pinned Workspace"
-            />
-            <div className="grid gap-3 md:grid-cols-2">
-              {renderCards(pinnedSystems, { dragGroup: 'pinned' })}
-            </div>
-            {pinnedSystems.length === 0 ? (
-              <PremiumEmptyState
-                action="Add pinned system"
-                message="Pinned systems stay separate from favorites for the links you need at command-center speed."
-                onAction={openAddModal}
-                title="No pinned systems yet"
-              />
-            ) : null}
-          </section>
-
-          <section>
-            <SectionHeader
-              action="Drag to sort"
-              eyebrow="Saved"
-              title="Favorites"
-            />
-            <div className="grid gap-3 md:grid-cols-2">
-              {renderCards(favoriteSystems, { dragGroup: 'favorite' })}
-            </div>
-            {favoriteSystems.length === 0 ? (
-              <PremiumEmptyState
-                message="Favorite systems will appear here when you tap the star on a card."
-                title="No favorites yet"
-              />
-            ) : null}
-          </section>
-        </div>
-
-        <div className="mt-7 grid gap-7 xl:grid-cols-[1fr_0.82fr]">
-          <section>
-            <SectionHeader
-              action="Edited"
-              eyebrow="Momentum"
-              title="Recently Edited"
-            />
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              {renderCards(editedSystems)}
-            </div>
-            {editedSystems.length === 0 ? (
-              <PremiumEmptyState
-                message="Edited systems will appear here after you update a workspace item."
-                title="No edits tracked yet"
-              />
-            ) : null}
-          </section>
-
-          <section>
-            <SectionHeader
-              action="Usage"
-              eyebrow="Intelligence"
-              title="Most Used Systems"
-            />
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              {renderCards(mostUsedSystems)}
-            </div>
-            {mostUsedSystems.length === 0 ? (
-              <PremiumEmptyState
-                message="Open systems to let NEXORA learn which links matter most."
-                title="No usage data yet"
-              />
-            ) : null}
-          </section>
-        </div>
-
-        <div className="mt-7 grid gap-7 xl:grid-cols-[1fr_0.82fr]">
-          <section>
-            <SectionHeader eyebrow="Today" title="Daily Workspace" />
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              {renderCards(dailyWorkspaceSystems.slice(0, 4))}
-            </div>
-          </section>
-
-          <section>
-            <SectionHeader
-              action="History"
-              eyebrow="Activity"
-              title="Recent Systems"
-            />
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              {renderCards(recentSystems)}
-            </div>
-            {recentSystems.length === 0 ? (
-              <PremiumEmptyState
-                message="Opened systems will appear here automatically after you launch a link."
-                title="No recent activity"
-              />
-            ) : null}
-          </section>
-        </div>
 
         <div className="mt-7">
           <CollectionPanel
@@ -773,37 +690,6 @@ export function HomeScreen() {
             onReorderCollections={reorderCollections}
             systems={systems}
           />
-        </div>
-
-        <div className="mt-7 grid gap-3 md:grid-cols-2">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
-              Analytics
-            </p>
-            <h3 className="mt-2 text-xl font-semibold text-white">
-              Launch Counts
-            </h3>
-            <p className="mt-3 text-4xl font-semibold text-[#70dfff]">
-              {totalLaunches}
-            </p>
-            <p className="mt-2 text-sm text-slate-400">
-              Total system launches tracked locally.
-            </p>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#f05193]">
-              Trend
-            </p>
-            <h3 className="mt-2 text-xl font-semibold text-white">
-              Recent Activity Trend
-            </h3>
-            <p className="mt-3 text-4xl font-semibold text-[#ffd1e4]">
-              {activityTrend}
-            </p>
-            <p className="mt-2 text-sm text-slate-400">
-              Opened and edited systems currently visible in activity streams.
-            </p>
-          </div>
         </div>
       </>
     )
@@ -874,6 +760,7 @@ export function HomeScreen() {
     if (activeView === 'Settings') {
       return (
         <SettingsPanel
+          cloudSyncStatus={cloudSyncStatus}
           checklist={{
             backupCreated,
             hasRealSystem: systems.length > 0,
@@ -888,6 +775,20 @@ export function HomeScreen() {
           onImport={importData}
           onImportStarterLinks={importStarterLinks}
           onReset={resetData}
+          onSyncCloudToLocal={() =>
+            notify(
+              cloudSyncStatus === 'connected'
+                ? 'Cloud to local sync is prepared for the next migration step'
+                : 'Supabase env missing. Local mode is active',
+            )
+          }
+          onSyncLocalToCloud={() =>
+            notify(
+              cloudSyncStatus === 'connected'
+                ? 'Local to cloud sync is prepared for the next migration step'
+                : 'Supabase env missing. Local mode is active',
+            )
+          }
           onThemeChange={setTheme}
           theme={theme}
         />
@@ -938,6 +839,7 @@ export function HomeScreen() {
 
         <div className="min-w-0">
           <Topbar
+            cloudSyncStatus={cloudSyncStatus}
             onCommitSearch={commitSearch}
             onMenuClick={() => setIsSidebarOpen(true)}
             onOpenSystem={handleOpenSystem}

@@ -1,6 +1,8 @@
-import { Download, Link, RotateCcw, Upload } from 'lucide-react'
+import { Cloud, Download, Link, RotateCcw, Upload } from 'lucide-react'
+import type { CloudSyncStatus } from '../lib/supabase'
 
 type SettingsPanelProps = {
+  cloudSyncStatus: CloudSyncStatus
   checklist: {
     backupCreated: boolean
     hasRealSystem: boolean
@@ -13,17 +15,22 @@ type SettingsPanelProps = {
   onImport: (file: File) => void
   onImportStarterLinks: (links: string) => void
   onReset: () => void
+  onSyncCloudToLocal: () => void
+  onSyncLocalToCloud: () => void
   onThemeChange: (theme: string) => void
   theme: string
 }
 
 export function SettingsPanel({
+  cloudSyncStatus,
   checklist,
   onClearRecent,
   onExport,
   onImport,
   onImportStarterLinks,
   onReset,
+  onSyncCloudToLocal,
+  onSyncLocalToCloud,
   onThemeChange,
   theme,
 }: SettingsPanelProps) {
@@ -34,6 +41,7 @@ export function SettingsPanel({
     ['Test mobile launch', checklist.mobileReady],
     ['Export workspace', checklist.backupCreated],
   ] as const
+  const isCloudConnected = cloudSyncStatus === 'connected'
 
   return (
     <section className="space-y-6">
@@ -118,6 +126,49 @@ export function SettingsPanel({
           ))}
         </div>
       </div>
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
+          Cloud Foundation
+        </p>
+        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-normal text-white">
+              Supabase connection
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Cloud sync is prepared while localStorage remains the active daily
+              fallback.
+            </p>
+          </div>
+          <div
+            className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+              isCloudConnected
+                ? 'border-[#009FD1]/35 bg-[#009FD1]/15 text-[#70dfff]'
+                : 'border-white/10 bg-white/[0.06] text-slate-400'
+            }`}
+          >
+            <Cloud size={17} />
+            Cloud Sync: {isCloudConnected ? 'Connected' : 'Offline / Local Mode'}
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <button
+            className="rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/15 p-4 text-left text-sm font-semibold text-[#70dfff] transition hover:bg-[#009FD1]/20"
+            onClick={onSyncLocalToCloud}
+            type="button"
+          >
+            Sync local data to cloud
+          </button>
+          <button
+            className="rounded-2xl border border-[#6b5095]/35 bg-[#6b5095]/15 p-4 text-left text-sm font-semibold text-[#d9c7ff] transition hover:bg-[#6b5095]/20"
+            onClick={onSyncCloudToLocal}
+            type="button"
+          >
+            Sync cloud data to local
+          </button>
+        </div>
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">

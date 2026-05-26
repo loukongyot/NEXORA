@@ -1,9 +1,11 @@
 import { Menu, Moon, Search, UserRound } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
+import type { CloudSyncStatus } from '../lib/supabase'
 import type { WorkspaceSystem } from '../types/workspace'
 
 type TopbarProps = {
+  cloudSyncStatus: CloudSyncStatus
   onCommitSearch: (query?: string) => void
   onMenuClick: () => void
   onOpenSystem: (system: WorkspaceSystem) => void
@@ -14,6 +16,7 @@ type TopbarProps = {
 }
 
 export function Topbar({
+  cloudSyncStatus,
   onCommitSearch,
   onMenuClick,
   onOpenSystem,
@@ -25,6 +28,7 @@ export function Topbar({
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const showDropdown =
     isSearchOpen && Boolean(searchQuery.trim() || recentSearches.length > 0)
+  const isCloudConnected = cloudSyncStatus === 'connected'
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -146,6 +150,16 @@ export function Topbar({
           <Moon size={18} />
         </button>
 
+        <div
+          className={`hidden rounded-2xl border px-3 py-2 text-xs font-semibold sm:block ${
+            isCloudConnected
+              ? 'border-[#009FD1]/35 bg-[#009FD1]/15 text-[#70dfff]'
+              : 'border-white/10 bg-white/[0.06] text-slate-400'
+          }`}
+        >
+          Cloud Sync: {isCloudConnected ? 'Connected' : 'Offline / Local Mode'}
+        </div>
+
         <button
           aria-label="User profile placeholder"
           className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-[#f05193]/30 via-[#6b5095]/25 to-[#009FD1]/30 text-white shadow-lg shadow-[#009FD1]/10"
@@ -153,6 +167,16 @@ export function Topbar({
         >
           <UserRound size={18} />
         </button>
+      </div>
+
+      <div
+        className={`mt-3 inline-flex rounded-2xl border px-3 py-2 text-xs font-semibold sm:hidden ${
+          isCloudConnected
+            ? 'border-[#009FD1]/35 bg-[#009FD1]/15 text-[#70dfff]'
+            : 'border-white/10 bg-white/[0.06] text-slate-400'
+        }`}
+      >
+        Cloud Sync: {isCloudConnected ? 'Connected' : 'Offline / Local Mode'}
       </div>
 
       <form
