@@ -1,24 +1,43 @@
-import { Download, RotateCcw, Upload } from 'lucide-react'
+import { Download, Link, RotateCcw, Upload } from 'lucide-react'
 
 type SettingsPanelProps = {
+  checklist: {
+    backupCreated: boolean
+    hasRealSystem: boolean
+    hasRecentActivity: boolean
+    isInstallable: boolean
+    mobileReady: boolean
+  }
   onClearRecent: () => void
   onExport: () => void
   onImport: (file: File) => void
+  onImportStarterLinks: (links: string) => void
   onReset: () => void
   onThemeChange: (theme: string) => void
   theme: string
 }
 
 export function SettingsPanel({
+  checklist,
   onClearRecent,
   onExport,
   onImport,
+  onImportStarterLinks,
   onReset,
   onThemeChange,
   theme,
 }: SettingsPanelProps) {
+  const checklistItems = [
+    ['Add first real system', checklist.hasRealSystem],
+    ['Create backup', checklist.backupCreated],
+    ['Install app', checklist.isInstallable],
+    ['Test mobile launch', checklist.mobileReady],
+    ['Export workspace', checklist.backupCreated],
+  ] as const
+
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
+    <section className="space-y-6">
+      <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
           Control Center
@@ -96,6 +115,69 @@ export function SettingsPanel({
             >
               {themeName}
             </button>
+          ))}
+        </div>
+      </div>
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#f05193]">
+          Migration
+        </p>
+        <h2 className="mt-1 text-xl font-semibold tracking-normal text-white">
+          Import Starter Workspace
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          Paste one link per line. NEXORA will auto-detect Google Forms,
+          Sheets, Drive folders, Slides, and Apps Script links where possible.
+        </p>
+        <textarea
+          className="mt-4 min-h-32 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#009FD1]/50"
+          id="starter-links"
+          placeholder="https://docs.google.com/forms/...\nhttps://docs.google.com/spreadsheets/...\nhttps://drive.google.com/drive/folders/..."
+        />
+        <button
+          className="mt-3 flex items-center gap-2 rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/20 px-5 py-3 text-sm font-semibold text-[#70dfff]"
+          onClick={() => {
+            const textarea = document.getElementById(
+              'starter-links',
+            ) as HTMLTextAreaElement | null
+            onImportStarterLinks(textarea?.value ?? '')
+            if (textarea) {
+              textarea.value = ''
+            }
+          }}
+          type="button"
+        >
+          <Link size={16} />
+          Import links
+        </button>
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
+          Production Checklist
+        </p>
+        <h2 className="mt-1 text-xl font-semibold tracking-normal text-white">
+          Daily-use readiness
+        </h2>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {checklistItems.map(([label, done]) => (
+            <div
+              className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3"
+              key={label}
+            >
+              <span className="text-sm font-medium text-slate-200">{label}</span>
+              <span
+                className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                  done
+                    ? 'bg-[#009FD1]/15 text-[#70dfff]'
+                    : 'bg-white/[0.06] text-slate-400'
+                }`}
+              >
+                {done ? 'Ready' : 'Todo'}
+              </span>
+            </div>
           ))}
         </div>
       </div>

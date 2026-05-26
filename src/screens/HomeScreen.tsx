@@ -24,9 +24,15 @@ import { useWorkspaceSystems } from '../hooks/useWorkspaceSystems'
 import type {
   WorkspaceBackup,
   WorkspaceCategory,
+  WorkspaceColor,
   WorkspaceSystem,
   WorkspaceSystemInput,
 } from '../types/workspace'
+import {
+  detectWorkspaceLink,
+  normalizeUrl,
+  validateWorkspaceUrl,
+} from '../utils/workspaceOptions'
 
 const categoryViews: WorkspaceCategory[] = [
   'Forms',
@@ -63,6 +69,9 @@ export function HomeScreen() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(
     () => localStorage.getItem('nexora.onboarded.v1') !== 'true',
+  )
+  const [backupCreated, setBackupCreated] = useState(
+    () => localStorage.getItem('nexora.backupCreated.v1') === 'true',
   )
   const [installPromptEvent, setInstallPromptEvent] = useState<Event | null>(null)
   const [isStandalone] = useState(() =>
@@ -295,6 +304,13 @@ export function HomeScreen() {
   }
 
   function handleDeleteSystem(id: string) {
+    const system = systems.find((item) => item.id === id)
+    const confirmed = window.confirm(
+      `Delete "${system?.name ?? 'this system'}" from NEXORA?`,
+    )
+    if (!confirmed) {
+      return
+    }
     deleteSystem(id)
     notify('System deleted')
   }
@@ -383,19 +399,100 @@ export function HomeScreen() {
     link.download = `nexora-workspace-${new Date().toISOString().slice(0, 10)}.json`
     link.click()
     URL.revokeObjectURL(url)
+    localStorage.setItem('nexora.backupCreated.v1', 'true')
+    setBackupCreated(true)
     notify('Workspace exported')
   }
 
   async function importData(file: File) {
-    const text = await file.text()
-    const backup = JSON.parse(text) as WorkspaceBackup
-    importWorkspaceData(backup)
-    notify('Workspace imported')
+    try {
+      const text = await file.text()
+      const backup = JSON.parse(text) as WorkspaceBackup
+      if (!Array.isArray(backup.systems) || !Array.isArray(backup.collections)) {
+        notify('Invalid backup file')
+        return
+      }
+      importWorkspaceData(backup)
+      notify('Workspace imported')
+    } catch {
+      notify('Import failed')
+    }
   }
 
   function resetData() {
+    const confirmed = window.confirm(
+      'Reset NEXORA to the starter workspace? Export a backup first if needed.',
+    )
+    if (!confirmed) {
+      return
+    }
     resetWorkspace()
     notify('Workspace reset')
+  }
+
+  function clearRecentData() {
+    const confirmed = window.confirm('Clear all recent activity?')
+    if (!confirmed) {
+      return
+    }
+    clearRecentActivity()
+    notify('Recent activity cleared')
+  }
+
+  function inferNameFromUrl(url: string, category: WorkspaceCategory) {
+    try {
+      const parsedUrl = new URL(normalizeUrl(url))
+      const lastSegment = parsedUrl.pathname
+        .split('/')
+        .filter(Boolean)
+        .at(-1)
+
+      if (lastSegment && !['edit', 'viewform', 'folders'].includes(lastSegment)) {
+        return `${category} - ${lastSegment.slice(0, 10)}`
+      }
+    } catch {
+      return `${category} System`
+    }
+
+    return `${category} System`
+  }
+
+  function importStarterLinks(rawLinks: string) {
+    const links = rawLinks
+      .split(/\r?\n|,/)
+      .map((link) => link.trim())
+      .filter(Boolean)
+    let savedCount = 0
+    let invalidCount = 0
+
+    links.forEach((link) => {
+      if (!validateWorkspaceUrl(link)) {
+        invalidCount += 1
+        return
+      }
+
+      const detection = detectWorkspaceLink(link)
+      const category = detection?.category ?? 'Other'
+      const input: WorkspaceSystemInput = {
+        category,
+        collectionId: '',
+        color: detection?.color ?? ('blue' as WorkspaceColor),
+        description: `Imported ${category} link.`,
+        favorite: false,
+        icon: detection?.icon ?? category,
+        name: inferNameFromUrl(link, category),
+        notes: 'Imported from starter workspace migration.',
+        pinned: false,
+        tags: Array.from(new Set(['Imported', ...(detection?.tags ?? [])])),
+        url: normalizeUrl(link),
+      }
+
+      if (addSystem(input)) {
+        savedCount += 1
+      }
+    })
+
+    notify(`Imported ${savedCount} links${invalidCount ? `, skipped ${invalidCount}` : ''}`)
   }
 
   function templateItems(template: WorkspaceTemplateName): WorkspaceSystemInput[] {
@@ -777,12 +874,19 @@ export function HomeScreen() {
     if (activeView === 'Settings') {
       return (
         <SettingsPanel
+          checklist={{
+            backupCreated,
+            hasRealSystem: systems.length > 0,
+            hasRecentActivity: recentSystems.length > 0,
+            isInstallable: Boolean(installPromptEvent) || isStandalone,
+            mobileReady: true,
+          }}
           onClearRecent={() => {
-            clearRecentActivity()
-            notify('Recent activity cleared')
+            clearRecentData()
           }}
           onExport={exportData}
           onImport={importData}
+          onImportStarterLinks={importStarterLinks}
           onReset={resetData}
           onThemeChange={setTheme}
           theme={theme}
