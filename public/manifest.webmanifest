@@ -1,0 +1,18 @@
+{
+  "name": "NEXORA HUB V1",
+  "short_name": "NEXORA",
+  "description": "A local AI workspace launcher for systems, links, notes, and collections.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/nexora-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
