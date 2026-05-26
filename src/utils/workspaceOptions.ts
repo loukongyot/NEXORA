@@ -10,6 +10,10 @@ import {
   Sparkles,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import {
+  detectGoogleFileType,
+  getGoogleFileIcon,
+} from '../services/googleDriveService'
 import type { WorkspaceCategory, WorkspaceColor } from '../types/workspace'
 
 export const workspaceCategories: WorkspaceCategory[] = [
@@ -94,6 +98,7 @@ export function detectWorkspaceLink(url: string): {
   }
 
   const normalizedUrl = normalizeUrl(url).toLowerCase()
+  const googleFileType = detectGoogleFileType(normalizedUrl)
 
   if (normalizedUrl.includes('docs.google.com/forms')) {
     return { category: 'Forms', color: 'pink', icon: 'Forms', tags: ['Google', 'Active'] }
@@ -121,6 +126,14 @@ export function detectWorkspaceLink(url: string): {
       icon: 'Apps Script',
       tags: ['Google', 'Automation'],
     }
+  }
+
+  if (googleFileType === 'document') {
+    return { category: 'Drive', color: 'blue', icon: getGoogleFileIcon(googleFileType), tags: ['Google', 'Document'] }
+  }
+
+  if (googleFileType === 'pdf' || googleFileType === 'image' || googleFileType === 'file') {
+    return { category: 'Output', color: 'brown', icon: getGoogleFileIcon(googleFileType), tags: ['Google', 'Output'] }
   }
 
   if (normalizedUrl.includes('drive.google.com')) {

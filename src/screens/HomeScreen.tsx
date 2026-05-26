@@ -3,6 +3,7 @@ import { CollectionPanel } from '../components/CollectionPanel'
 import { CommandPalette } from '../components/CommandPalette'
 import { DashboardCard } from '../components/DashboardCard'
 import { FloatingCreateButton } from '../components/FloatingCreateButton'
+import { GoogleDriveWorkspace } from '../components/GoogleDriveWorkspace'
 import { GoogleWorkspaceWidget } from '../components/GoogleWorkspaceWidget'
 import { InstallPrompt } from '../components/InstallPrompt'
 import { InsightCard } from '../components/InsightCard'
@@ -26,8 +27,14 @@ import {
   fetchGoogleWorkspaceData,
   testGoogleWorkspaceConnection,
   type GoogleWorkspaceData,
+  type GoogleRealtimeStatus,
   type GoogleWorkspaceStatus,
 } from '../services/googleWorkspaceService'
+import type { GoogleDriveFileMetadata } from '../services/googleDriveService'
+import {
+  driveFileToWorkspaceInput,
+  googleLinkToDriveMetadata,
+} from '../services/googleDriveService'
 import {
   runFullSystemHealthCheck,
   type SystemHealthReport,
@@ -133,8 +140,12 @@ export function HomeScreen() {
     useState<GoogleWorkspaceData | null>(null)
   const [googleWorkspaceStatus, setGoogleWorkspaceStatus] =
     useState<GoogleWorkspaceStatus>('missing-url')
+  const [googleRealtimeStatus, setGoogleRealtimeStatus] =
+    useState<GoogleRealtimeStatus>('failed')
   const [googleWorkspaceMessage, setGoogleWorkspaceMessage] =
     useState('ยังไม่ได้เชื่อมต่อ')
+  const [isGoogleImportOpen, setIsGoogleImportOpen] = useState(false)
+  const [googleImportLinks, setGoogleImportLinks] = useState('')
   const [healthReport, setHealthReport] = useState<SystemHealthReport | null>(
     null,
   )
@@ -260,13 +271,21 @@ export function HomeScreen() {
   useEffect(() => {
     async function loadGoogleWorkspace() {
       setGoogleWorkspaceStatus('loading')
+      setGoogleRealtimeStatus('fetching')
       const result = await fetchGoogleWorkspaceData()
       setGoogleWorkspaceData(result.data)
       setGoogleWorkspaceStatus(result.status)
+      setGoogleRealtimeStatus(result.realtimeStatus)
       setGoogleWorkspaceMessage(result.message)
     }
 
     void loadGoogleWorkspace()
+
+    const refreshTimer = window.setInterval(() => {
+      void loadGoogleWorkspace()
+    }, 5 * 60 * 1000)
+
+    return () => window.clearInterval(refreshTimer)
   }, [])
 
   useEffect(() => {
@@ -629,9 +648,11 @@ export function HomeScreen() {
 
   async function refreshGoogleWorkspaceData(shouldNotify = true) {
     setGoogleWorkspaceStatus('loading')
+    setGoogleRealtimeStatus('fetching')
     const result = await fetchGoogleWorkspaceData()
     setGoogleWorkspaceData(result.data)
     setGoogleWorkspaceStatus(result.status)
+    setGoogleRealtimeStatus(result.realtimeStatus)
     setGoogleWorkspaceMessage(result.message)
 
     if (shouldNotify) {
@@ -641,9 +662,11 @@ export function HomeScreen() {
 
   async function handleTestGoogleConnection() {
     setGoogleWorkspaceStatus('loading')
+    setGoogleRealtimeStatus('fetching')
     const result = await testGoogleWorkspaceConnection()
     setGoogleWorkspaceData(result.data)
     setGoogleWorkspaceStatus(result.status)
+    setGoogleRealtimeStatus(result.realtimeStatus)
     setGoogleWorkspaceMessage(result.message)
     notify(result.message)
   }
@@ -706,6 +729,70 @@ export function HomeScreen() {
     })
 
     notify(`นำเข้า ${savedCount} ลิงก์${invalidCount ? `, ข้าม ${invalidCount}` : ''}`)
+  }
+
+  function findCollectionId(name?: string) {
+    if (!name) {
+      return ''
+    }
+
+    return (
+      collections.find(
+        (collection) =>
+          collection.name.trim().toLowerCase() === name.trim().toLowerCase(),
+      )?.id ?? ''
+    )
+  }
+
+  function addDriveFileToWorkspace(
+    file: GoogleDriveFileMetadata,
+    options: { favorite?: boolean; pinned?: boolean } = {},
+  ) {
+    const input = driveFileToWorkspaceInput(
+      {
+        ...file,
+        favorite: options.favorite ?? file.favorite,
+        pinned: options.pinned ?? file.pinned,
+      },
+      findCollectionId(file.collection),
+    )
+
+    if (addSystem(input)) {
+      notify('เพิ่ม Google Drive file เข้า Workspace แล้ว')
+    } else {
+      notify('ลิงก์ Google Drive ไม่ถูกต้อง')
+    }
+  }
+
+  function importGoogleLinks(rawLinks = googleImportLinks) {
+    const links = rawLinks
+      .split(/\r?\n|,/)
+      .map((link) => link.trim())
+      .filter(Boolean)
+    let savedCount = 0
+    let invalidCount = 0
+
+    links.forEach((link) => {
+      const file = googleLinkToDriveMetadata(link)
+
+      if (!file) {
+        invalidCount += 1
+        return
+      }
+
+      const input = driveFileToWorkspaceInput(file, findCollectionId(file.collection))
+      if (addSystem(input)) {
+        savedCount += 1
+      } else {
+        invalidCount += 1
+      }
+    })
+
+    notify(`นำเข้า Google links ${savedCount} รายการ${invalidCount ? `, ข้าม ${invalidCount}` : ''}`)
+    if (savedCount > 0) {
+      setGoogleImportLinks('')
+      setIsGoogleImportOpen(false)
+    }
   }
 
   function templateItems(template: WorkspaceTemplateName): WorkspaceSystemInput[] {
@@ -943,7 +1030,18 @@ export function HomeScreen() {
         <GoogleWorkspaceWidget
           data={googleWorkspaceData}
           onRefresh={() => void refreshGoogleWorkspaceData()}
+          realtimeStatus={googleRealtimeStatus}
           status={googleWorkspaceStatus}
+        />
+
+        <GoogleDriveWorkspace
+          data={googleWorkspaceData}
+          onAttachFile={(file) => addDriveFileToWorkspace(file)}
+          onImportLinks={() => setIsGoogleImportOpen(true)}
+          onPinFile={(file) => addDriveFileToWorkspace(file, { pinned: true })}
+          onSaveFavorite={(file) =>
+            addDriveFileToWorkspace(file, { favorite: true })
+          }
         />
 
         <section className="mt-7">
@@ -1299,6 +1397,44 @@ export function HomeScreen() {
                 type="button"
               >
                 ย้ายขึ้น cloud
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {isGoogleImportOpen ? (
+        <div className="fixed inset-0 z-[75] grid place-items-end bg-[#020617]/75 p-0 backdrop-blur-sm sm:place-items-center sm:p-5">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-[#0f172a]/95 p-5 shadow-2xl shadow-black/50 backdrop-blur-2xl sm:max-w-xl sm:rounded-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
+              Google Drive Import
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+              นำเข้า Google links
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              วางลิงก์ Google Sheet, Form, Drive folder, Slide หรือ Apps Script
+              ระบบจะตรวจชนิดไฟล์และจัดหมวดหมู่ให้อัตโนมัติ
+            </p>
+            <textarea
+              className="mt-4 min-h-44 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#009FD1]/50"
+              onChange={(event) => setGoogleImportLinks(event.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/...\nhttps://drive.google.com/drive/folders/...\nhttps://script.google.com/..."
+              value={googleImportLinks}
+            />
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button
+                className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:text-white"
+                onClick={() => setIsGoogleImportOpen(false)}
+                type="button"
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/20 px-4 py-3 text-sm font-semibold text-[#70dfff] transition hover:bg-[#009FD1]/25"
+                onClick={() => importGoogleLinks()}
+                type="button"
+              >
+                Import links
               </button>
             </div>
           </div>
