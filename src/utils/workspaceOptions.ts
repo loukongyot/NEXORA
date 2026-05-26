@@ -70,6 +70,10 @@ export function normalizeUrl(url: string) {
   return `https://${trimmedUrl}`
 }
 
+export function normalizeWorkspaceUrl(url: string) {
+  return normalizeUrl(url)
+}
+
 export function validateWorkspaceUrl(url: string) {
   try {
     const parsedUrl = new URL(normalizeUrl(url))
@@ -124,6 +128,17 @@ export function detectWorkspaceLink(url: string): {
   }
 
   return null
+}
+
+export function detectGoogleLinkType(url: string) {
+  return detectWorkspaceLink(url)
+}
+
+export function generateWorkspaceTags(url: string, customTags: string[] = []) {
+  const detectedLink = detectWorkspaceLink(url)
+  const tags = detectedLink?.tags ?? []
+
+  return Array.from(new Set([...tags, ...customTags].filter(Boolean)))
 }
 
 export function fuzzyIncludes(source: string, query: string) {

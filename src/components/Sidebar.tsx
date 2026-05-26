@@ -50,9 +50,9 @@ export function Sidebar({
         </div>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.07] p-3">
-          <p className="text-xs text-slate-400">Workspace status</p>
+          <p className="text-xs text-slate-400">สถานะ Workspace</p>
           <div className="mt-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-white">Systems ready</span>
+            <span className="text-sm font-medium text-white">ระบบพร้อมใช้</span>
             <span className="rounded-full bg-[#009FD1]/15 px-2 py-1 text-xs text-[#70dfff]">
               {systemCount}
             </span>
@@ -83,16 +83,16 @@ export function Sidebar({
                   size={18}
                   strokeWidth={1.8}
                 />
-                {item.label}
+                {item.displayLabel}
               </button>
             )
           })}
         </nav>
 
         <div className="mt-5 rounded-2xl border border-[#f05193]/20 bg-[#f05193]/10 p-4">
-          <p className="text-sm font-semibold text-white">AI dashboard mode</p>
+          <p className="text-sm font-semibold text-white">โหมด AI dashboard</p>
           <p className="mt-1 text-xs leading-5 text-slate-300">
-            Local workspace launcher. Links are saved on this device.
+            ระบบและลิงก์ถูกบันทึกในเครื่อง และซิงก์กับ Cloud Sync เมื่อพร้อม.
           </p>
         </div>
       </aside>

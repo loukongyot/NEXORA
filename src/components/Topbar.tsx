@@ -1,11 +1,10 @@
 import { Menu, Moon, Search, UserRound } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
-import type { CloudSyncStatus } from '../lib/supabase'
+import type { WorkspaceSyncStatus } from '../hooks/useWorkspaceSystems'
 import type { WorkspaceSystem } from '../types/workspace'
 
 type TopbarProps = {
-  cloudSyncStatus: CloudSyncStatus
   onCommitSearch: (query?: string) => void
   onMenuClick: () => void
   onOpenSystem: (system: WorkspaceSystem) => void
@@ -13,10 +12,10 @@ type TopbarProps = {
   recentSearches: string[]
   searchQuery: string
   searchResults: WorkspaceSystem[]
+  syncStatus: WorkspaceSyncStatus
 }
 
 export function Topbar({
-  cloudSyncStatus,
   onCommitSearch,
   onMenuClick,
   onOpenSystem,
@@ -24,11 +23,20 @@ export function Topbar({
   recentSearches,
   searchQuery,
   searchResults,
+  syncStatus,
 }: TopbarProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const showDropdown =
     isSearchOpen && Boolean(searchQuery.trim() || recentSearches.length > 0)
-  const isCloudConnected = cloudSyncStatus === 'connected'
+  const syncStatusLabel: Record<WorkspaceSyncStatus, string> = {
+    error: 'เกิดข้อผิดพลาด',
+    offline: 'ออฟไลน์',
+    'local-only': 'Local Only',
+    pending: 'Pending Sync',
+    synced: 'พร้อมใช้งาน',
+    syncing: 'กำลังซิงก์',
+  }
+  const isCloudHealthy = syncStatus === 'synced' || syncStatus === 'syncing'
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -45,7 +53,7 @@ export function Topbar({
         {searchQuery.trim() ? (
           <>
             <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#009FD1]">
-              Live Results
+              ผลการค้นหา
             </p>
             <div className="space-y-2">
               {searchResults.length > 0 ? (
@@ -69,13 +77,13 @@ export function Topbar({
                       </span>
                     </span>
                     <span className="rounded-full bg-[#009FD1]/15 px-2 py-1 text-xs text-[#70dfff]">
-                      Open
+                      เปิด
                     </span>
                   </button>
                 ))
               ) : (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.04] p-4 text-sm text-slate-400">
-                  No systems found. Try a name, category, or tag.
+                  ยังไม่มีระบบที่ตรงกับคำค้นหา ลองค้นหาด้วยชื่อ หมวด หรือ tag.
                 </div>
               )}
             </div>
@@ -83,7 +91,7 @@ export function Topbar({
         ) : (
           <>
             <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#f05193]">
-              Recent Searches
+              ค้นหาล่าสุด
             </p>
             <div className="flex flex-wrap gap-2">
               {recentSearches.map((search) => (
@@ -107,7 +115,7 @@ export function Topbar({
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0f172a]/70 px-4 py-4 backdrop-blur-2xl sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
         <button
-          aria-label="Open navigation"
+          aria-label="เปิดเมนู"
           className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[0.07] text-slate-200 lg:hidden"
           onClick={onMenuClick}
           type="button"
@@ -120,7 +128,7 @@ export function Topbar({
             Workspace
           </p>
           <h2 className="truncate text-lg font-semibold tracking-normal text-white sm:text-2xl">
-            NEXORA Command Dashboard
+            แดชบอร์ด NEXORA
           </h2>
         </div>
 
@@ -130,12 +138,12 @@ export function Topbar({
         >
           <Search size={18} />
           <input
-            aria-label="Search workspace"
+            aria-label="ค้นหา workspace"
             className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
             onBlur={() => window.setTimeout(() => setIsSearchOpen(false), 150)}
             onChange={(event) => onSearchChange(event.target.value)}
             onFocus={() => setIsSearchOpen(true)}
-            placeholder="Search forms, sheets, scripts, folders..."
+            placeholder="ค้นหาระบบ ฟอร์ม หรือโฟลเดอร์..."
             value={searchQuery}
             type="search"
           />
@@ -152,16 +160,20 @@ export function Topbar({
 
         <div
           className={`hidden rounded-2xl border px-3 py-2 text-xs font-semibold sm:block ${
-            isCloudConnected
+            isCloudHealthy
               ? 'border-[#009FD1]/35 bg-[#009FD1]/15 text-[#70dfff]'
-              : 'border-white/10 bg-white/[0.06] text-slate-400'
-          }`}
+              : syncStatus === 'error'
+                ? 'border-[#ba5835]/35 bg-[#ba5835]/15 text-[#ffb08d]'
+                : syncStatus === 'pending'
+                  ? 'border-[#f05193]/35 bg-[#f05193]/15 text-[#ffd1e4]'
+                : 'border-white/10 bg-white/[0.06] text-slate-400'
+          } ${syncStatus === 'syncing' ? 'animate-pulse' : ''}`}
         >
-          Cloud Sync: {isCloudConnected ? 'Connected' : 'Offline / Local Mode'}
+          Cloud Sync: {syncStatusLabel[syncStatus]}
         </div>
 
         <button
-          aria-label="User profile placeholder"
+          aria-label="โปรไฟล์"
           className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-[#f05193]/30 via-[#6b5095]/25 to-[#009FD1]/30 text-white shadow-lg shadow-[#009FD1]/10"
           type="button"
         >
@@ -171,12 +183,16 @@ export function Topbar({
 
       <div
         className={`mt-3 inline-flex rounded-2xl border px-3 py-2 text-xs font-semibold sm:hidden ${
-          isCloudConnected
+          isCloudHealthy
             ? 'border-[#009FD1]/35 bg-[#009FD1]/15 text-[#70dfff]'
-            : 'border-white/10 bg-white/[0.06] text-slate-400'
-        }`}
+            : syncStatus === 'error'
+              ? 'border-[#ba5835]/35 bg-[#ba5835]/15 text-[#ffb08d]'
+              : syncStatus === 'pending'
+                ? 'border-[#f05193]/35 bg-[#f05193]/15 text-[#ffd1e4]'
+              : 'border-white/10 bg-white/[0.06] text-slate-400'
+        } ${syncStatus === 'syncing' ? 'animate-pulse' : ''}`}
       >
-        Cloud Sync: {isCloudConnected ? 'Connected' : 'Offline / Local Mode'}
+        Cloud Sync: {syncStatusLabel[syncStatus]}
       </div>
 
       <form
@@ -185,12 +201,12 @@ export function Topbar({
       >
         <Search size={18} />
         <input
-          aria-label="Search workspace"
+          aria-label="ค้นหา workspace"
           className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
           onBlur={() => window.setTimeout(() => setIsSearchOpen(false), 150)}
           onChange={(event) => onSearchChange(event.target.value)}
           onFocus={() => setIsSearchOpen(true)}
-          placeholder="Search workspace..."
+          placeholder="ค้นหา workspace..."
           value={searchQuery}
           type="search"
         />

@@ -16,10 +16,10 @@ export function FloatingCreateButton({
 }: FloatingCreateButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const actions = [
-    { label: 'New System', icon: Plus, onClick: onNewSystem },
-    { label: 'New Collection', icon: FolderPlus, onClick: onNewCollection },
-    { label: 'New AI Prompt', icon: Bot, onClick: onNewAiPrompt },
-    { label: 'New Workspace Note', icon: FileText, onClick: onNewNote },
+    { label: 'เพิ่มระบบ', icon: Plus, onClick: onNewSystem },
+    { label: 'เพิ่มกลุ่มงาน', icon: FolderPlus, onClick: onNewCollection },
+    { label: 'เพิ่ม AI Prompt', icon: Bot, onClick: onNewAiPrompt },
+    { label: 'เพิ่ม Note', icon: FileText, onClick: onNewNote },
   ]
 
   return (

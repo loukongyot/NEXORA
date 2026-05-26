@@ -1,67 +1,141 @@
-import type {
-  WorkspaceCollection,
-  WorkspaceColor,
-  WorkspaceSystem,
-} from './workspace'
+export type Json =
+  | boolean
+  | number
+  | string
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export type SupabaseWorkspaceSystem = WorkspaceSystem & {
-  updated_at?: string | null
-  user_id?: string | null
+export type SupabaseWorkspaceSystem = {
+  category: string
+  collection_id: string | null
+  color: string | null
+  created_at: string
+  description: string | null
+  favorite: boolean
+  icon: string | null
+  id: string
+  last_opened_at: string | null
+  launch_count: number
+  name: string
+  notes: string | null
+  pinned: boolean
+  tags: string[]
+  updated_at: string
+  url: string
 }
 
-export type SupabaseCollection = WorkspaceCollection & {
-  created_at?: string | null
-  updated_at?: string | null
-  user_id?: string | null
+export type SupabaseWorkspaceSystemInsert = {
+  category: string
+  collection_id?: string | null
+  color?: string | null
+  created_at?: string
+  description?: string | null
+  favorite?: boolean
+  icon?: string | null
+  id?: string
+  last_opened_at?: string | null
+  launch_count?: number
+  name: string
+  notes?: string | null
+  pinned?: boolean
+  tags?: string[]
+  updated_at?: string
+  url: string
 }
+
+export type SupabaseWorkspaceSystemUpdate =
+  Partial<SupabaseWorkspaceSystemInsert>
+
+export type SupabaseCollection = {
+  color: string | null
+  created_at: string
+  icon: string | null
+  id: string
+  name: string
+  sort_order: number
+  updated_at: string
+}
+
+export type SupabaseCollectionInsert = {
+  color?: string | null
+  created_at?: string
+  icon?: string | null
+  id?: string
+  name: string
+  sort_order?: number
+  updated_at?: string
+}
+
+export type SupabaseCollectionUpdate = Partial<SupabaseCollectionInsert>
 
 export type SupabaseInsight = {
-  id: string
-  action: string
-  color: WorkspaceColor
+  active: boolean
+  content: string
   created_at: string
-  description: string
-  kind: 'Prompt' | 'News' | 'Tip' | 'Workflow'
+  id: string
+  source_url: string | null
+  tags: string[]
   title: string
+  type: string
 }
 
-export type SupabaseActivityLog = {
-  id: string
-  action: 'created' | 'updated' | 'deleted' | 'opened' | 'synced'
-  created_at: string
-  metadata: Record<string, unknown> | null
-  system_id: string | null
-  user_id?: string | null
+export type SupabaseInsightInsert = {
+  active?: boolean
+  content: string
+  created_at?: string
+  id?: string
+  source_url?: string | null
+  tags?: string[]
+  title: string
+  type: string
 }
+
+export type SupabaseInsightUpdate = Partial<SupabaseInsightInsert>
+
+export type SupabaseActivityLog = {
+  action: string
+  created_at: string
+  id: string
+  metadata: Json
+  system_id: string | null
+}
+
+export type SupabaseActivityLogInsert = {
+  action: string
+  created_at?: string
+  id?: string
+  metadata?: Json
+  system_id?: string | null
+}
+
+export type SupabaseActivityLogUpdate = Partial<SupabaseActivityLogInsert>
 
 export type Database = {
   public: {
     Tables: {
       activity_logs: {
         Row: SupabaseActivityLog
-        Insert: Omit<SupabaseActivityLog, 'id' | 'created_at'> & {
-          created_at?: string
-          id?: string
-        }
-        Update: Partial<SupabaseActivityLog>
+        Insert: SupabaseActivityLogInsert
+        Update: SupabaseActivityLogUpdate
         Relationships: []
       }
       collections: {
         Row: SupabaseCollection
-        Insert: SupabaseCollection
-        Update: Partial<SupabaseCollection>
+        Insert: SupabaseCollectionInsert
+        Update: SupabaseCollectionUpdate
         Relationships: []
       }
       insights: {
         Row: SupabaseInsight
-        Insert: SupabaseInsight
-        Update: Partial<SupabaseInsight>
+        Insert: SupabaseInsightInsert
+        Update: SupabaseInsightUpdate
         Relationships: []
       }
       workspace_systems: {
         Row: SupabaseWorkspaceSystem
-        Insert: SupabaseWorkspaceSystem
-        Update: Partial<SupabaseWorkspaceSystem>
+        Insert: SupabaseWorkspaceSystemInsert
+        Update: SupabaseWorkspaceSystemUpdate
         Relationships: []
       }
     }

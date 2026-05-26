@@ -1,8 +1,15 @@
-import { Cloud, Download, Link, RotateCcw, Upload } from 'lucide-react'
+import { Cloud, Database, Download, Link, RefreshCw, RotateCcw, Upload } from 'lucide-react'
+import type { WorkspaceSyncStatus } from '../hooks/useWorkspaceSystems'
 import type { CloudSyncStatus } from '../lib/supabase'
+import type { GoogleWorkspaceStatus } from '../services/googleWorkspaceService'
+import type { DatabaseTestStatus } from '../services/workspaceService'
 
 type SettingsPanelProps = {
   cloudSyncStatus: CloudSyncStatus
+  databaseTestStatus: DatabaseTestStatus | null
+  googleWorkspaceMessage: string
+  googleWorkspaceStatus: GoogleWorkspaceStatus
+  isSyncing: boolean
   checklist: {
     backupCreated: boolean
     hasRealSystem: boolean
@@ -15,33 +22,78 @@ type SettingsPanelProps = {
   onImport: (file: File) => void
   onImportStarterLinks: (links: string) => void
   onReset: () => void
+  onTestCloudDatabase: () => void
+  onTestGoogleConnection: () => void
   onSyncCloudToLocal: () => void
+  onForceRefreshCloud: () => void
   onSyncLocalToCloud: () => void
   onThemeChange: (theme: string) => void
+  syncMessage: string
+  syncStatus: WorkspaceSyncStatus
+  lastSyncedAt: string
   theme: string
 }
 
 export function SettingsPanel({
   cloudSyncStatus,
+  databaseTestStatus,
+  googleWorkspaceMessage,
+  googleWorkspaceStatus,
+  isSyncing,
   checklist,
   onClearRecent,
   onExport,
   onImport,
   onImportStarterLinks,
   onReset,
+  onTestCloudDatabase,
+  onTestGoogleConnection,
   onSyncCloudToLocal,
+  onForceRefreshCloud,
   onSyncLocalToCloud,
   onThemeChange,
+  syncMessage,
+  syncStatus,
+  lastSyncedAt,
   theme,
 }: SettingsPanelProps) {
   const checklistItems = [
-    ['Add first real system', checklist.hasRealSystem],
-    ['Create backup', checklist.backupCreated],
-    ['Install app', checklist.isInstallable],
-    ['Test mobile launch', checklist.mobileReady],
+    ['เพิ่มระบบจริงรายการแรก', checklist.hasRealSystem],
+    ['สร้าง backup', checklist.backupCreated],
+    ['ติดตั้งแอป', checklist.isInstallable],
+    ['ทดสอบบนมือถือ', checklist.mobileReady],
     ['Export workspace', checklist.backupCreated],
   ] as const
   const isCloudConnected = cloudSyncStatus === 'connected'
+  const syncStatusLabel: Record<WorkspaceSyncStatus, string> = {
+    error: 'Error',
+    offline: 'Offline',
+    'local-only': 'Local Only',
+    pending: 'Pending Sync',
+    synced: 'Synced',
+    syncing: 'Syncing',
+  }
+  const databaseStatusLabel =
+    databaseTestStatus === 'ready'
+      ? 'Database Ready'
+      : databaseTestStatus === 'missing'
+        ? 'Tables Missing'
+        : databaseTestStatus === 'local'
+          ? 'Local Mode'
+          : 'Not tested'
+  const googleWorkspaceStatusLabel: Record<GoogleWorkspaceStatus, string> = {
+    connected: 'เชื่อมต่อแล้ว',
+    empty: 'เชื่อมต่อแล้ว แต่ยังไม่มีข้อมูล',
+    error: 'เชื่อมต่อไม่สำเร็จ',
+    loading: 'กำลังตรวจสอบ',
+    'missing-url': 'ยังไม่ได้เชื่อมต่อ',
+  }
+  const lastSyncedLabel = lastSyncedAt
+    ? new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(lastSyncedAt))
+    : 'Not synced yet'
 
   return (
     <section className="space-y-6">
@@ -51,11 +103,10 @@ export function SettingsPanel({
           Control Center
         </p>
         <h2 className="mt-1 text-2xl font-semibold tracking-normal text-white">
-          Settings
+          ตั้งค่า
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-400">
-          Manage local workspace data, backups, recent activity, and future theme
-          options.
+          จัดการข้อมูล localStorage, backup, activity และการตั้งค่าการซิงก์.
         </p>
       </div>
 
@@ -92,7 +143,7 @@ export function SettingsPanel({
           type="button"
         >
           <RotateCcw className="text-[#ffb08d]" size={18} />
-          Clear recent activity
+          ล้างการใช้งานล่าสุด
         </button>
 
         <button
@@ -100,14 +151,14 @@ export function SettingsPanel({
           onClick={onReset}
           type="button"
         >
-          Reset workspace
+          รีเซ็ต workspace
         </button>
       </div>
 
       <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.05] p-4">
         <p className="text-sm font-semibold text-white">Theme System</p>
         <p className="mt-1 text-sm text-slate-400">
-          Switch the local visual atmosphere while preserving the NEXORA layout.
+          ปรับบรรยากาศของ UI โดยยังคง layout ของ NEXORA.
         </p>
         <div className="mt-4 grid gap-2 sm:grid-cols-4">
           {['Dark', 'Midnight', 'Aurora', 'Neon', 'Glass Light'].map((themeName) => (
@@ -130,16 +181,19 @@ export function SettingsPanel({
 
       <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
-          Cloud Foundation
+          Cloud Status
         </p>
         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-normal text-white">
-              Supabase connection
+              สถานะ Supabase
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Cloud sync is prepared while localStorage remains the active daily
-              fallback.
+              Cloud sync is optional. localStorage remains available as the
+              offline-safe fallback.
+            </p>
+            <p className="mt-2 text-xs font-medium text-slate-500">
+              ซิงก์ล่าสุด: {lastSyncedLabel}
             </p>
           </div>
           <div
@@ -150,37 +204,127 @@ export function SettingsPanel({
             }`}
           >
             <Cloud size={17} />
-            Cloud Sync: {isCloudConnected ? 'Connected' : 'Offline / Local Mode'}
+            Cloud Sync: {syncStatusLabel[syncStatus]}
           </div>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
+        {syncMessage ? (
+          <p className="mt-3 text-sm text-slate-400">{syncMessage}</p>
+        ) : null}
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#f05193]">
+          Sync Controls
+        </p>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
           <button
-            className="rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/15 p-4 text-left text-sm font-semibold text-[#70dfff] transition hover:bg-[#009FD1]/20"
+            className="rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/15 p-4 text-left text-sm font-semibold text-[#70dfff] transition hover:bg-[#009FD1]/20 disabled:cursor-wait disabled:opacity-60"
+            disabled={isSyncing}
             onClick={onSyncLocalToCloud}
             type="button"
           >
-            Sync local data to cloud
+            {isSyncing ? 'กำลังซิงก์...' : 'Sync local data to cloud'}
           </button>
           <button
-            className="rounded-2xl border border-[#6b5095]/35 bg-[#6b5095]/15 p-4 text-left text-sm font-semibold text-[#d9c7ff] transition hover:bg-[#6b5095]/20"
+            className="rounded-2xl border border-[#6b5095]/35 bg-[#6b5095]/15 p-4 text-left text-sm font-semibold text-[#d9c7ff] transition hover:bg-[#6b5095]/20 disabled:cursor-wait disabled:opacity-60"
+            disabled={isSyncing}
             onClick={onSyncCloudToLocal}
             type="button"
           >
-            Sync cloud data to local
+            {isSyncing ? 'กำลังซิงก์...' : 'Sync cloud data to local'}
+          </button>
+          <button
+            className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-left text-sm font-semibold text-white transition hover:border-[#009FD1]/35 disabled:cursor-wait disabled:opacity-60"
+            disabled={isSyncing}
+            onClick={onForceRefreshCloud}
+            type="button"
+          >
+            <RefreshCw
+              className={isSyncing ? 'animate-spin text-[#70dfff]' : 'text-[#70dfff]'}
+              size={17}
+            />
+            Force refresh cloud workspace
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6b5095]">
+          Database Health
+        </p>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <button
+            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-left text-sm font-semibold text-white transition hover:border-[#009FD1]/35"
+            onClick={onTestCloudDatabase}
+            type="button"
+          >
+            <Database className="text-[#d9c7ff]" size={18} />
+            <span>
+              Test Cloud Database
+              <span
+                className={`mt-2 block text-xs ${
+                databaseTestStatus === 'ready'
+                  ? 'text-[#70dfff]'
+                  : databaseTestStatus === 'missing'
+                    ? 'text-[#ffb08d]'
+                    : 'text-slate-400'
+                }`}
+              >
+                {databaseStatusLabel}
+              </span>
+            </span>
+          </button>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-sm text-slate-400">
+            RLS and authentication remain disabled for this early development
+            sync stage.
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
+          Google Workspace
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+            <p className="text-sm font-semibold text-white">
+              Google Workspace API URL
+            </p>
+            <p
+              className={`mt-2 text-sm ${
+                googleWorkspaceStatus === 'connected'
+                  ? 'text-[#70dfff]'
+                  : googleWorkspaceStatus === 'error'
+                    ? 'text-[#ffb08d]'
+                    : 'text-slate-400'
+              }`}
+            >
+              {googleWorkspaceStatusLabel[googleWorkspaceStatus]}
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              {googleWorkspaceMessage}
+            </p>
+          </div>
+          <button
+            className="rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/15 p-4 text-left text-sm font-semibold text-[#70dfff] transition hover:bg-[#009FD1]/20"
+            onClick={onTestGoogleConnection}
+            type="button"
+          >
+            Test Google Connection
           </button>
         </div>
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#f05193]">
-          Migration
+          Migration Tools
         </p>
         <h2 className="mt-1 text-xl font-semibold tracking-normal text-white">
-          Import Starter Workspace
+          นำเข้า Starter Workspace
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-400">
-          Paste one link per line. NEXORA will auto-detect Google Forms,
-          Sheets, Drive folders, Slides, and Apps Script links where possible.
+          วางลิงก์บรรทัดละ 1 รายการ NEXORA จะตรวจจับ Google Forms, Sheets,
+          Drive folders, Slides และ Apps Script ให้อัตโนมัติ.
         </p>
         <textarea
           className="mt-4 min-h-32 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-[#009FD1]/50"
@@ -201,7 +345,7 @@ export function SettingsPanel({
           type="button"
         >
           <Link size={16} />
-          Import links
+          นำเข้าลิงก์
         </button>
       </div>
 
@@ -210,7 +354,7 @@ export function SettingsPanel({
           Production Checklist
         </p>
         <h2 className="mt-1 text-xl font-semibold tracking-normal text-white">
-          Daily-use readiness
+          ความพร้อมใช้งานประจำวัน
         </h2>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {checklistItems.map(([label, done]) => (
@@ -226,7 +370,7 @@ export function SettingsPanel({
                     : 'bg-white/[0.06] text-slate-400'
                 }`}
               >
-                {done ? 'Ready' : 'Todo'}
+                {done ? 'พร้อม' : 'รอทำ'}
               </span>
             </div>
           ))}

@@ -45,11 +45,11 @@ export function CommandPalette({
 
   const commands = useMemo<CommandItem[]>(() => {
     const actionItems: CommandItem[] = [
-      { group: 'Actions', id: 'new-system', label: 'New System', meta: 'Create', run: onNewSystem },
-      { group: 'Actions', id: 'new-collection', label: 'New Collection', meta: 'Create', run: onNewCollection },
-      { group: 'Actions', id: 'new-note', label: 'New Workspace Note', meta: 'Create', run: onNewNote },
-      { group: 'Actions', id: 'dashboard', label: 'Open Dashboard', meta: 'Navigate', run: () => onNavigate('Dashboard') },
-      { group: 'Actions', id: 'favorites', label: 'Open Favorites', meta: 'Navigate', run: () => onNavigate('Favorites') },
+      { group: 'Actions', id: 'new-system', label: 'เพิ่มระบบ', meta: 'Create', run: onNewSystem },
+      { group: 'Actions', id: 'new-collection', label: 'เพิ่มกลุ่มงาน', meta: 'Create', run: onNewCollection },
+      { group: 'Actions', id: 'new-note', label: 'เพิ่ม Workspace Note', meta: 'Create', run: onNewNote },
+      { group: 'Actions', id: 'dashboard', label: 'เปิดแดชบอร์ด', meta: 'Navigate', run: () => onNavigate('Dashboard') },
+      { group: 'Actions', id: 'favorites', label: 'เปิด Starred', meta: 'Navigate', run: () => onNavigate('Favorites') },
     ]
     const systemItems = systems.map((system) => ({
       group: 'Systems',
@@ -59,7 +59,7 @@ export function CommandPalette({
       run: () => onOpenSystem(system),
     }))
     const collectionItems = collections.map((collection) => ({
-      group: 'Collections',
+      group: 'กลุ่มงาน',
       id: collection.id,
       label: collection.name,
       meta: 'Collection',
@@ -146,7 +146,7 @@ export function CommandPalette({
               setActiveIndex(0)
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search systems, collections, categories, actions..."
+            placeholder="ค้นหาระบบ กลุ่มงาน หมวด หรือ action..."
             value={query}
           />
           <button
@@ -187,7 +187,7 @@ export function CommandPalette({
             ))
           ) : (
             <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.04] p-5 text-sm text-slate-400">
-              No command found.
+              ไม่พบ command
             </div>
           )}
         </div>

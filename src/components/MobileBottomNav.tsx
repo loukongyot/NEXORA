@@ -15,11 +15,11 @@ export function MobileBottomNav({
     <>
       <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-3xl border border-white/10 bg-[#0f172a]/85 p-2 shadow-2xl shadow-black/35 backdrop-blur-2xl lg:hidden">
         {[
-          { label: 'Home', icon: Home, action: () => onNavigate('Dashboard') },
-          { label: 'Fav', icon: Star, action: () => onNavigate('Favorites') },
-          { label: 'Add', icon: Plus, action: onAdd },
-          { label: 'Search', icon: Search, action: onSearchFocus },
-          { label: 'Recent', icon: Zap, action: () => onNavigate('Recent') },
+          { label: 'หน้าแรก', icon: Home, action: () => onNavigate('Dashboard') },
+          { label: 'Starred', icon: Star, action: () => onNavigate('Favorites') },
+          { label: 'เพิ่ม', icon: Plus, action: onAdd },
+          { label: 'ค้นหา', icon: Search, action: onSearchFocus },
+          { label: 'ล่าสุด', icon: Zap, action: () => onNavigate('Recent') },
         ].map((item) => {
           const Icon = item.icon
 
@@ -37,7 +37,7 @@ export function MobileBottomNav({
         })}
       </nav>
       <button
-        aria-label="Add system"
+        aria-label="เพิ่มระบบ"
         className="fixed bottom-24 right-5 z-40 grid h-14 w-14 place-items-center rounded-2xl border border-[#f05193]/35 bg-[#f05193]/25 text-[#ffd1e4] shadow-2xl shadow-[#f05193]/20 backdrop-blur-2xl lg:hidden"
         onClick={onAdd}
         type="button"

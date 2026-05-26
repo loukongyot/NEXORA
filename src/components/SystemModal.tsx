@@ -149,7 +149,7 @@ export function SystemModal({
               Workspace System
             </p>
             <h2 className="mt-1 text-2xl font-semibold tracking-normal text-white">
-              {editingSystem ? 'Edit System' : 'Add New System'}
+              {editingSystem ? 'แก้ไขระบบ' : 'เพิ่มระบบ'}
             </h2>
           </div>
           <button
@@ -175,7 +175,7 @@ export function SystemModal({
           </label>
 
           <label>
-            <span className="text-sm font-medium text-slate-300">Category</span>
+            <span className="text-sm font-medium text-slate-300">หมวดหมู่</span>
             <select
               className="mt-2 w-full rounded-2xl border border-white/10 bg-[#16213a] px-4 py-3 text-white outline-none transition focus:border-[#009FD1]/50"
               onChange={(event) =>
@@ -221,7 +221,7 @@ export function SystemModal({
             ) : null}
             {!urlError && detectWorkspaceLink(form.url) ? (
               <p className="mt-2 text-xs font-medium text-[#70dfff]">
-                Google workspace link detected. Category and icon assigned.
+                ตรวจพบ Google workspace link และตั้งค่าหมวดหมู่ให้อัตโนมัติ.
               </p>
             ) : null}
           </label>
@@ -257,7 +257,7 @@ export function SystemModal({
 
           <label className="sm:col-span-2">
             <span className="text-sm font-medium text-slate-300">
-              Collection
+              กลุ่มงาน
             </span>
             <select
               className="mt-2 w-full rounded-2xl border border-white/10 bg-[#16213a] px-4 py-3 text-white outline-none transition focus:border-[#009FD1]/50"
@@ -266,7 +266,7 @@ export function SystemModal({
               }
               value={form.collectionId}
             >
-              <option value="">No collection</option>
+              <option value="">ไม่มีกลุ่มงาน</option>
               {collections.map((collection) => (
                 <option key={collection.id} value={collection.id}>
                   {collection.name}
@@ -277,7 +277,7 @@ export function SystemModal({
 
           <label className="sm:col-span-2">
             <span className="text-sm font-medium text-slate-300">
-              Description
+              คำอธิบาย
             </span>
             <textarea
               className="mt-2 min-h-28 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-[#009FD1]/50"
@@ -294,7 +294,7 @@ export function SystemModal({
             <textarea
               className="mt-2 min-h-24 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-[#009FD1]/50"
               onChange={(event) => updateField('notes', event.target.value)}
-              placeholder="Internal notes, owner, reminders, or usage context..."
+              placeholder="บันทึกภายใน ผู้รับผิดชอบ reminder หรือบริบทการใช้งาน..."
               value={form.notes}
             />
           </label>
@@ -309,7 +309,7 @@ export function SystemModal({
               type="checkbox"
             />
             <span className="text-sm font-medium text-slate-200">
-              Add to Favorites
+              เพิ่มใน Starred
             </span>
           </label>
 
@@ -332,13 +332,13 @@ export function SystemModal({
             onClick={onClose}
             type="button"
           >
-            Cancel
+            ยกเลิก
           </button>
           <button
             className="rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/20 px-5 py-3 text-sm font-semibold text-[#70dfff] shadow-lg shadow-[#009FD1]/10 transition hover:bg-[#009FD1]/25"
             type="submit"
           >
-            {editingSystem ? 'Save Changes' : 'Save System'}
+            {editingSystem ? 'บันทึกการแก้ไข' : 'บันทึกระบบ'}
           </button>
         </div>
       </form>

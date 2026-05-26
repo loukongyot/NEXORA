@@ -1,4 +1,4 @@
-export type InsightKind = 'Prompt' | 'News' | 'Tip' | 'Workflow'
+export type InsightKind = 'prompt' | 'news' | 'tip' | 'workflow'
 
 export type InsightItem = {
   id: string
@@ -10,35 +10,35 @@ export type InsightItem = {
 
 export const insights: InsightItem[] = [
   {
-    id: 'prompt-daily-summary',
-    kind: 'Prompt',
-    title: 'Daily workspace summary',
+    id: 'prompt-lesson-plan',
+    kind: 'prompt',
+    title: 'Prompt สร้างแผนการสอน',
     description:
-      'Summarize today\'s forms, sheets, pending tasks, and next actions into a short operating brief.',
-    action: 'Use prompt',
+      'ใช้ AI ช่วยร่างแผนการสอนจากหัวข้อ เวลาเรียน จุดประสงค์ และกิจกรรมในชั้นเรียน.',
+    action: 'เปิด Prompt',
   },
   {
-    id: 'tip-backup-rhythm',
-    kind: 'Tip',
-    title: 'Keep a weekly backup rhythm',
+    id: 'tip-google-sheets',
+    kind: 'tip',
+    title: 'เทคนิค Google Sheets',
     description:
-      'Export your NEXORA workspace after adding major systems so local data stays easy to restore.',
-    action: 'Review settings',
+      'แยก sheet สำหรับข้อมูลดิบ สรุปผล และ dashboard เพื่อลดความสับสนเวลาทำรายงาน.',
+    action: 'ดูเทคนิค',
   },
   {
-    id: 'news-ai-ops',
-    kind: 'News',
-    title: 'AI operations are moving local-first',
+    id: 'news-canva-ai',
+    kind: 'news',
+    title: 'Canva AI Update',
     description:
-      'More daily tools are blending lightweight local storage with intelligent command layers for faster personal workflows.',
-    action: 'Read brief',
+      'ติดตามฟีเจอร์ AI สำหรับทำสื่อการสอน งานนำเสนอ และภาพประกอบให้เร็วขึ้น.',
+    action: 'อ่านสรุป',
   },
   {
-    id: 'workflow-admissions',
-    kind: 'Workflow',
-    title: 'Admissions control loop',
+    id: 'workflow-daily-report',
+    kind: 'workflow',
+    title: 'Workflow การทำรายงานประจำวัน',
     description:
-      'Pair an intake form, response sheet, Drive output folder, and LINE notification link into one starred flow.',
-    action: 'Build flow',
+      'เชื่อม Form, Sheet, Drive folder และ LINE notification ให้เป็นลำดับงานเดียว.',
+    action: 'จัด Workflow',
   },
 ]

@@ -121,7 +121,7 @@ export function DashboardCard({
             {system.name}
           </h3>
           <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-300">
-            {system.description || 'No description yet.'}
+            {system.description || 'ยังไม่มีคำอธิบาย'}
           </p>
           {system.tags.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -141,7 +141,7 @@ export function DashboardCard({
           onClick={() => onOpen(system)}
           type="button"
         >
-          Open system
+          เปิดระบบ
           <ExternalLink size={15} />
         </button>
         <button
@@ -149,7 +149,7 @@ export function DashboardCard({
           onClick={() => onInspect(system)}
           type="button"
         >
-          View details
+          ดูรายละเอียด
         </button>
         <div className="mt-4 h-px bg-gradient-to-r from-white/20 via-white/5 to-transparent" />
       </div>

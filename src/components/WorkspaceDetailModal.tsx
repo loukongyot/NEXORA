@@ -58,17 +58,17 @@ export function WorkspaceDetailModal({
         </div>
 
         <p className="mt-5 text-sm leading-6 text-slate-300">
-          {system.description || 'No description yet.'}
+          {system.description || 'ยังไม่มีคำอธิบาย'}
         </p>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           {[
-            ['Category', system.category],
-            ['Collection', collection?.name ?? 'No collection'],
-            ['Created', formatDate(system.createdAt)],
-            ['Last opened', formatDate(system.openedAt)],
-            ['Launch count', String(system.openCount)],
-            ['Recent activity', system.editedAt ? `Edited ${formatDate(system.editedAt)}` : 'No edits yet'],
+            ['หมวดหมู่', system.category],
+            ['กลุ่มงาน', collection?.name ?? 'ไม่มีกลุ่มงาน'],
+            ['สร้างเมื่อ', formatDate(system.createdAt)],
+            ['เปิดล่าสุด', formatDate(system.openedAt)],
+            ['จำนวนเปิด', String(system.openCount)],
+            ['Activity', system.editedAt ? `แก้ไข ${formatDate(system.editedAt)}` : 'ยังไม่มีการแก้ไข'],
           ].map(([label, value]) => (
             <div
               className="rounded-2xl border border-white/10 bg-white/[0.06] p-4"
@@ -103,7 +103,7 @@ export function WorkspaceDetailModal({
             Notes
           </p>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
-            {system.notes || 'No notes saved yet.'}
+            {system.notes || 'ยังไม่มี notes'}
           </p>
         </div>
 
@@ -125,7 +125,7 @@ export function WorkspaceDetailModal({
                 </button>
               ))
             ) : (
-              <p className="text-sm text-slate-400">No related systems yet.</p>
+              <p className="text-sm text-slate-400">ยังไม่มีระบบที่เกี่ยวข้อง</p>
             )}
           </div>
         </div>
@@ -136,7 +136,7 @@ export function WorkspaceDetailModal({
             onClick={() => onOpen(system)}
             type="button"
           >
-            Open
+            เปิด
             <ExternalLink size={16} />
           </button>
           <button
@@ -151,7 +151,7 @@ export function WorkspaceDetailModal({
             onClick={() => onToggleFavorite(system.id)}
             type="button"
           >
-            Favorite
+            Starred
           </button>
           <button
             className="rounded-2xl border border-white/10 bg-white/[0.07] px-5 py-3 text-sm font-semibold text-slate-300"

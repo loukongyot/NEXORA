@@ -3,6 +3,7 @@ import { CollectionPanel } from '../components/CollectionPanel'
 import { CommandPalette } from '../components/CommandPalette'
 import { DashboardCard } from '../components/DashboardCard'
 import { FloatingCreateButton } from '../components/FloatingCreateButton'
+import { GoogleWorkspaceWidget } from '../components/GoogleWorkspaceWidget'
 import { InstallPrompt } from '../components/InstallPrompt'
 import { InsightCard } from '../components/InsightCard'
 import { MobileBottomNav } from '../components/MobileBottomNav'
@@ -21,6 +22,16 @@ import { WorkspaceDetailModal } from '../components/WorkspaceDetailModal'
 import { insights } from '../data/insightsData'
 import { useWorkspaceSystems } from '../hooks/useWorkspaceSystems'
 import { cloudSyncStatus } from '../lib/supabase'
+import {
+  fetchGoogleWorkspaceData,
+  testGoogleWorkspaceConnection,
+  type GoogleWorkspaceData,
+  type GoogleWorkspaceStatus,
+} from '../services/googleWorkspaceService'
+import {
+  testSupabaseConnection,
+  type DatabaseTestStatus,
+} from '../services/workspaceService'
 import type {
   WorkspaceBackup,
   WorkspaceCategory,
@@ -29,8 +40,9 @@ import type {
   WorkspaceSystemInput,
 } from '../types/workspace'
 import {
-  detectWorkspaceLink,
-  normalizeUrl,
+  detectGoogleLinkType,
+  generateWorkspaceTags,
+  normalizeWorkspaceUrl,
   validateWorkspaceUrl,
 } from '../utils/workspaceOptions'
 
@@ -42,6 +54,22 @@ const categoryViews: WorkspaceCategory[] = [
   'Apps Script',
   'AI Tools',
 ]
+
+const viewTitles: Record<string, string> = {
+  Dashboard: 'แดชบอร์ด',
+  Favorites: '⭐ Starred',
+  Forms: '📝 Forms',
+  Sheets: '📊 Sheets',
+  Drive: '📁 Drive',
+  Slides: '🖥️ Slides',
+  'Apps Script': '⚡ Apps Script',
+  'AI Tools': '🤖 AI Tools',
+  Recent: 'การใช้งานล่าสุด',
+  Search: 'ค้นหา',
+  Settings: 'ตั้งค่า',
+}
+
+const INSTALL_DISMISSED_KEY = 'nexora.installDismissed.v1'
 
 const themeBackgrounds: Record<string, string> = {
   Aurora:
@@ -75,13 +103,36 @@ export function HomeScreen() {
   )
   const [installPromptEvent, setInstallPromptEvent] = useState<Event | null>(null)
   const [isStandalone] = useState(() =>
-    window.matchMedia('(display-mode: standalone)').matches,
+    window.matchMedia('(display-mode: standalone)').matches ||
+    Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone),
   )
+  const [isInstallDismissed, setIsInstallDismissed] = useState(
+    () => localStorage.getItem(INSTALL_DISMISSED_KEY) === 'true',
+  )
+  const [isIos] = useState(() => {
+    const navigatorWithPlatform = window.navigator as Navigator & {
+      standalone?: boolean
+    }
+    return (
+      /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+      typeof navigatorWithPlatform.standalone === 'boolean'
+    )
+  })
   const [theme, setTheme] = useState(
     () => localStorage.getItem('nexora.theme.v1') ?? 'Dark',
   )
   const [toasts, setToasts] = useState<ToastMessage[]>([])
+  const [databaseTestStatus, setDatabaseTestStatus] =
+    useState<DatabaseTestStatus | null>(null)
+  const [googleWorkspaceData, setGoogleWorkspaceData] =
+    useState<GoogleWorkspaceData | null>(null)
+  const [googleWorkspaceStatus, setGoogleWorkspaceStatus] =
+    useState<GoogleWorkspaceStatus>('missing-url')
+  const [googleWorkspaceMessage, setGoogleWorkspaceMessage] =
+    useState('ยังไม่ได้เชื่อมต่อ')
   const toastIdRef = useRef(0)
+  const lastSyncMessageRef = useRef('')
 
   const {
     activeSystems,
@@ -92,11 +143,14 @@ export function HomeScreen() {
     collections,
     commitSearch,
     deleteSystem,
+    dismissCloudMigrationPrompt,
     exportWorkspaceData,
     editedSystems,
     favoriteSystems,
     filteredSystems,
     importWorkspaceData,
+    isWorkspaceLoading,
+    lastSyncedAt,
     mostUsedSystems,
     openSystem,
     pinnedSystems,
@@ -108,6 +162,11 @@ export function HomeScreen() {
     searchQuery,
     searchResults,
     setSearchQuery,
+    shouldPromptCloudMigration,
+    syncCloudToLocal,
+    syncLocalToCloud,
+    syncMessage,
+    syncStatus,
     systems,
     toggleFavorite,
     togglePinned,
@@ -138,10 +197,33 @@ export function HomeScreen() {
   }, [dailyWorkspaceSystems, editedSystems, mostUsedSystems, recentSystems])
 
   const stats = [
-    { label: 'Systems', tone: 'blue' as const, value: systems.length },
-    { label: 'Favorites', tone: 'pink' as const, value: favoriteSystems.length },
-    { label: 'Collections', tone: 'purple' as const, value: collections.length },
-    { label: 'Recent', tone: 'brown' as const, value: recentSystems.length },
+    { label: 'จำนวนระบบ', tone: 'blue' as const, value: systems.length },
+    {
+      label: 'ระบบล่าสุด',
+      tone: 'pink' as const,
+      value: recentSystems.length,
+    },
+    {
+      label: 'Cloud status',
+      tone: 'purple' as const,
+      value: cloudSyncStatus === 'connected' ? 'Cloud' : 'Local',
+    },
+    {
+      label: 'Sync state',
+      tone: 'brown' as const,
+      value:
+        syncStatus === 'synced'
+          ? 'Synced'
+          : syncStatus === 'syncing'
+            ? 'Syncing'
+            : syncStatus === 'pending'
+              ? 'Pending'
+            : syncStatus === 'local-only'
+              ? 'Local'
+              : syncStatus === 'offline'
+                ? 'Offline'
+                : 'Error',
+    },
   ]
   useEffect(() => {
     localStorage.setItem('nexora.theme.v1', theme)
@@ -153,10 +235,42 @@ export function HomeScreen() {
       setInstallPromptEvent(event)
     }
 
+    function handleInstalled() {
+      setInstallPromptEvent(null)
+      localStorage.setItem(INSTALL_DISMISSED_KEY, 'true')
+      setIsInstallDismissed(true)
+    }
+
     window.addEventListener('beforeinstallprompt', handleInstallPrompt)
-    return () =>
+    window.addEventListener('appinstalled', handleInstalled)
+    return () => {
       window.removeEventListener('beforeinstallprompt', handleInstallPrompt)
+      window.removeEventListener('appinstalled', handleInstalled)
+    }
   }, [])
+
+  useEffect(() => {
+    async function loadGoogleWorkspace() {
+      setGoogleWorkspaceStatus('loading')
+      const result = await fetchGoogleWorkspaceData()
+      setGoogleWorkspaceData(result.data)
+      setGoogleWorkspaceStatus(result.status)
+      setGoogleWorkspaceMessage(result.message)
+    }
+
+    void loadGoogleWorkspace()
+  }, [])
+
+  useEffect(() => {
+    if (
+      syncMessage &&
+      syncMessage !== lastSyncMessageRef.current &&
+      (syncStatus === 'error' || syncStatus === 'offline')
+    ) {
+      lastSyncMessageRef.current = syncMessage
+      notify(syncMessage)
+    }
+  }, [syncMessage, syncStatus])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -293,6 +407,11 @@ export function HomeScreen() {
     setInstallPromptEvent(null)
   }
 
+  function dismissInstallPrompt() {
+    localStorage.setItem(INSTALL_DISMISSED_KEY, 'true')
+    setIsInstallDismissed(true)
+  }
+
   function openEditModal(system: WorkspaceSystem) {
     setCreateTemplate(null)
     setEditingSystem(system)
@@ -309,7 +428,13 @@ export function HomeScreen() {
       ? updateSystem(editingSystem.id, input)
       : addSystem(input)
 
-    notify(didSave ? (editingSystem ? 'System saved' : 'System added') : 'Invalid workspace link')
+    notify(
+      didSave
+        ? editingSystem
+          ? 'บันทึกระบบแล้ว'
+          : 'เพิ่มระบบแล้ว'
+        : 'ลิงก์ไม่ถูกต้อง',
+    )
 
     if (didSave) {
       closeModal()
@@ -335,12 +460,12 @@ export function HomeScreen() {
 
   function handleTogglePinned(id: string) {
     togglePinned(id)
-    notify('Pinned workspace updated')
+    notify('อัปเดต Starred แล้ว')
   }
 
   function handleOpenSystem(system: WorkspaceSystem) {
     openSystem(system)
-    notify('Link opened')
+    notify('เปิดลิงก์แล้ว')
   }
 
   function focusSearch() {
@@ -381,7 +506,7 @@ export function HomeScreen() {
     URL.revokeObjectURL(url)
     localStorage.setItem('nexora.backupCreated.v1', 'true')
     setBackupCreated(true)
-    notify('Workspace exported')
+    notify('ส่งออก workspace แล้ว')
   }
 
   async function importData(file: File) {
@@ -389,39 +514,93 @@ export function HomeScreen() {
       const text = await file.text()
       const backup = JSON.parse(text) as WorkspaceBackup
       if (!Array.isArray(backup.systems) || !Array.isArray(backup.collections)) {
-        notify('Invalid backup file')
+        notify('ไฟล์ backup ไม่ถูกต้อง')
         return
       }
       importWorkspaceData(backup)
-      notify('Workspace imported')
+      notify('นำเข้า workspace แล้ว')
     } catch {
-      notify('Import failed')
+      notify('นำเข้าไม่สำเร็จ')
     }
   }
 
   function resetData() {
     const confirmed = window.confirm(
-      'Reset NEXORA to the starter workspace? Export a backup first if needed.',
+      'รีเซ็ต NEXORA กลับเป็น starter workspace? ควร export backup ก่อนถ้าจำเป็น',
     )
     if (!confirmed) {
       return
     }
     resetWorkspace()
-    notify('Workspace reset')
+    notify('รีเซ็ต workspace แล้ว')
   }
 
   function clearRecentData() {
-    const confirmed = window.confirm('Clear all recent activity?')
+    const confirmed = window.confirm('ล้างการใช้งานล่าสุดทั้งหมด?')
     if (!confirmed) {
       return
     }
     clearRecentActivity()
-    notify('Recent activity cleared')
+    notify('ล้างการใช้งานล่าสุดแล้ว')
+  }
+
+  function formatRelativeTime(date?: string) {
+    if (!date) {
+      return 'ยังไม่เคยเปิด'
+    }
+
+    const elapsedSeconds = Math.max(
+      0,
+      Math.round((Date.now() - new Date(date).getTime()) / 1000),
+    )
+
+    if (elapsedSeconds < 60) {
+      return 'เมื่อสักครู่'
+    }
+
+    const elapsedMinutes = Math.round(elapsedSeconds / 60)
+    if (elapsedMinutes < 60) {
+      return `${elapsedMinutes} นาทีที่แล้ว`
+    }
+
+    const elapsedHours = Math.round(elapsedMinutes / 60)
+    if (elapsedHours < 24) {
+      return `${elapsedHours} ชม. ที่แล้ว`
+    }
+
+    return `${Math.round(elapsedHours / 24)} วันที่แล้ว`
+  }
+
+  async function handleTestCloudDatabase() {
+    const result = await testSupabaseConnection()
+    setDatabaseTestStatus(result.status)
+    notify(result.message)
+  }
+
+  async function refreshGoogleWorkspaceData(shouldNotify = true) {
+    setGoogleWorkspaceStatus('loading')
+    const result = await fetchGoogleWorkspaceData()
+    setGoogleWorkspaceData(result.data)
+    setGoogleWorkspaceStatus(result.status)
+    setGoogleWorkspaceMessage(result.message)
+
+    if (shouldNotify) {
+      notify(result.message)
+    }
+  }
+
+  async function handleTestGoogleConnection() {
+    setGoogleWorkspaceStatus('loading')
+    const result = await testGoogleWorkspaceConnection()
+    setGoogleWorkspaceData(result.data)
+    setGoogleWorkspaceStatus(result.status)
+    setGoogleWorkspaceMessage(result.message)
+    notify(result.message)
   }
 
   function inferNameFromUrl(url: string, category: WorkspaceCategory) {
     try {
-      const parsedUrl = new URL(normalizeUrl(url))
+      const parsedUrl = new URL(normalizeWorkspaceUrl(url))
       const lastSegment = parsedUrl.pathname
         .split('/')
         .filter(Boolean)
@@ -451,11 +630,15 @@ export function HomeScreen() {
         return
       }
 
-      const detection = detectWorkspaceLink(link)
+      const detection = detectGoogleLinkType(link)
       const category = detection?.category ?? 'Other'
+      const collectionSuggestion =
+        collections.find((collection) =>
+          collection.name.toLowerCase().includes(category.toLowerCase()),
+        )?.id ?? ''
       const input: WorkspaceSystemInput = {
         category,
-        collectionId: '',
+        collectionId: collectionSuggestion,
         color: detection?.color ?? ('blue' as WorkspaceColor),
         description: `Imported ${category} link.`,
         favorite: false,
@@ -463,8 +646,8 @@ export function HomeScreen() {
         name: inferNameFromUrl(link, category),
         notes: 'Imported from starter workspace migration.',
         pinned: false,
-        tags: Array.from(new Set(['Imported', ...(detection?.tags ?? [])])),
-        url: normalizeUrl(link),
+        tags: generateWorkspaceTags(link, ['Imported']),
+        url: normalizeWorkspaceUrl(link),
       }
 
       if (addSystem(input)) {
@@ -472,7 +655,7 @@ export function HomeScreen() {
       }
     })
 
-    notify(`Imported ${savedCount} links${invalidCount ? `, skipped ${invalidCount}` : ''}`)
+    notify(`นำเข้า ${savedCount} ลิงก์${invalidCount ? `, ข้าม ${invalidCount}` : ''}`)
   }
 
   function templateItems(template: WorkspaceTemplateName): WorkspaceSystemInput[] {
@@ -604,67 +787,91 @@ export function HomeScreen() {
         <div className="mb-6 grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/25 backdrop-blur-2xl sm:p-6">
             <div className="inline-flex rounded-full border border-[#f05193]/35 bg-[#f05193]/10 px-4 py-2 text-sm font-medium text-[#ffd1e4] backdrop-blur-xl">
-              Personal intelligent workspace launcher
+              Workspace ส่วนตัวสำหรับงานประจำวัน
             </div>
             <h2 className="mt-5 max-w-4xl text-3xl font-semibold leading-tight tracking-normal text-white sm:text-4xl lg:text-5xl">
-              Your school automation universe, organized in one command center.
+              รวมระบบ ฟอร์ม โฟลเดอร์ และ AI Tools ไว้ในที่เดียว.
             </h2>
             <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
-              Quick access to forms, sheets, folders, slides, Apps Script, AI
-              tools, LINE notification tools, outputs, and master links.
+              ค้นหา เปิด และจัดกลุ่มงานสำคัญได้เร็วขึ้น พร้อม Cloud Sync และ localStorage fallback.
             </p>
             <button
               className="mt-5 rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/20 px-5 py-3 text-sm font-semibold text-[#70dfff] shadow-lg shadow-[#009FD1]/10 transition hover:bg-[#009FD1]/25"
               onClick={openAddModal}
               type="button"
             >
-              Add New System
+              เพิ่มระบบ
             </button>
           </div>
 
           <div>
             <SectionHeader
               action="Local"
-              eyebrow="Signal"
+              eyebrow="ภาพรวม"
               title="Analytics Mini"
             />
             <StatsGrid stats={stats} />
           </div>
         </div>
 
+        <section className="mb-7">
+          <SectionHeader
+            action={searchQuery ? `${filteredSystems.length} รายการ` : 'พร้อมค้นหา'}
+            eyebrow="Search"
+            title="ค้นหา"
+          />
+          <button
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.065] px-4 py-4 text-left shadow-2xl shadow-black/15 backdrop-blur-2xl transition hover:border-[#009FD1]/35 hover:bg-white/[0.09]"
+            onClick={focusSearch}
+            type="button"
+          >
+            <span>
+              <span className="block text-base font-semibold text-white">
+                ค้นหาระบบ ฟอร์ม หรือโฟลเดอร์
+              </span>
+              <span className="mt-1 block text-sm text-slate-400">
+                ใช้ชื่อ หมวดหมู่ หรือ tag เพื่อเปิด workspace ได้เร็วขึ้น.
+              </span>
+            </span>
+            <span className="rounded-full border border-[#009FD1]/30 bg-[#009FD1]/15 px-3 py-1 text-xs font-semibold text-[#70dfff]">
+              ค้นหา
+            </span>
+          </button>
+        </section>
+
         <div className="mt-7 grid gap-7 xl:grid-cols-[1fr_0.9fr]">
           <section>
             <SectionHeader
-              action={starredSystems.length ? `${starredSystems.length} items` : 'Ready'}
-              eyebrow="Focus"
-              title="Starred"
+              action={starredSystems.length ? `${starredSystems.length} ระบบ` : 'พร้อมใช้'}
+              eyebrow="โฟกัส"
+              title="⭐ Starred"
             />
             <div className="grid gap-3 md:grid-cols-2">
               {renderCards(starredSystems, { dragGroup: 'pinned' })}
             </div>
             {starredSystems.length === 0 ? (
               <PremiumEmptyState
-                action="Add system"
-                message="Pin or favorite your most important workspace links and they will appear here."
+                action="เพิ่มระบบ"
+                message="ปักหมุดหรือกดดาวให้ระบบที่ใช้บ่อย แล้วระบบจะมาอยู่ตรงนี้."
                 onAction={openAddModal}
-                title="No starred systems yet"
+                title="ยังไม่มี Starred"
               />
             ) : null}
           </section>
 
           <section>
             <SectionHeader
-              action={continueWorkingSystems.length ? 'Live feed' : 'Waiting'}
-              eyebrow="Flow"
-              title="Continue Working"
+              action={continueWorkingSystems.length ? 'พร้อมเปิดต่อ' : 'รอข้อมูล'}
+              eyebrow="ทำต่อ"
+              title="ทำงานล่าสุด"
             />
             <div className="grid gap-3 md:grid-cols-2">
               {renderCards(continueWorkingSystems)}
             </div>
             {continueWorkingSystems.length === 0 ? (
               <PremiumEmptyState
-                message="Recently opened, edited, daily, and most used systems will surface here."
-                title="Nothing active yet"
+                message="เปิดระบบที่ใช้งานล่าสุดได้ทันทีเมื่อเริ่มมี activity."
+                title="ยังไม่มีงานล่าสุด"
               />
             ) : null}
           </section>
@@ -672,15 +879,55 @@ export function HomeScreen() {
 
         <section className="mt-7">
           <SectionHeader
-            action="Mock feed"
-            eyebrow="Intelligence"
-            title="NEXORA INSIGHTS"
+            action="Mock data"
+            eyebrow="เนื้อหาอัจฉริยะ"
+            title="🧠 NEXORA Insights"
           />
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {insights.map((insight) => (
               <InsightCard insight={insight} key={insight.id} />
             ))}
           </div>
+        </section>
+
+        <GoogleWorkspaceWidget
+          data={googleWorkspaceData}
+          onRefresh={() => void refreshGoogleWorkspaceData()}
+          status={googleWorkspaceStatus}
+        />
+
+        <section className="mt-7">
+          <SectionHeader
+            action={syncStatus === 'local-only' ? 'Local mode' : 'Cloud + local'}
+            eyebrow="ล่าสุด"
+            title="การใช้งานล่าสุด"
+          />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {recentSystems.slice(0, 6).map((system) => (
+              <button
+                className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-left shadow-2xl shadow-black/15 backdrop-blur-2xl transition hover:border-[#009FD1]/35 hover:bg-white/[0.09]"
+                key={system.id}
+                onClick={() => setDetailSystem(system)}
+                type="button"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#009FD1]">
+                  {formatRelativeTime(system.openedAt)}
+                </p>
+                <h3 className="mt-2 line-clamp-1 text-base font-semibold text-white">
+                  {system.name}
+                </h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  {system.category} - เปิด {system.openCount} ครั้ง
+                </p>
+              </button>
+            ))}
+          </div>
+          {recentSystems.length === 0 ? (
+            <PremiumEmptyState
+              message="เปิดระบบที่ใช้งานล่าสุดได้ทันที และ NEXORA จะบันทึก activity ให้อัตโนมัติ."
+              title="ยังไม่มีการใช้งานล่าสุด"
+            />
+          ) : null}
         </section>
 
         <div className="mt-7">
@@ -704,13 +951,13 @@ export function HomeScreen() {
     return (
       <section>
         <SectionHeader
-          action={`${filteredSystems.length} results`}
+          action={`${filteredSystems.length} รายการ`}
           eyebrow="Command"
-          title="Global Search"
+          title="ค้นหา"
         />
         <div className="mb-5 rounded-3xl border border-white/10 bg-white/[0.075] p-5 backdrop-blur-2xl">
           <p className="text-sm text-slate-300">
-            Search by name, category, or tag. Recent searches:
+            ค้นหาด้วยชื่อ หมวดหมู่ หรือ tag. ค้นหาล่าสุด:
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {recentSearches.map((search) => (
@@ -739,13 +986,13 @@ export function HomeScreen() {
         </div>
         {filteredSystems.length === 0 ? (
           <PremiumEmptyState
-            action="Clear search"
-            message="No systems match this query yet. Try a category, tag, or system name."
+            action="ล้างคำค้นหา"
+            message="ยังไม่มีระบบที่ตรงกับคำค้นหา ลองค้นหาด้วยชื่อ หมวด หรือ tag."
             onAction={() => {
               setSearchQuery('')
               clearRecentSearches()
             }}
-            title="No search results"
+            title="ไม่พบผลการค้นหา"
           />
         ) : null}
       </section>
@@ -753,6 +1000,32 @@ export function HomeScreen() {
   }
 
   function renderActiveView() {
+    if (isWorkspaceLoading) {
+      return (
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-6 shadow-2xl shadow-black/20 backdrop-blur-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
+              Cloud Sync
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+            กำลังโหลด workspace
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+            NEXORA กำลังตรวจ Supabase และเตรียม localStorage เป็น fallback.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {[0, 1, 2].map((item) => (
+              <div
+                className="h-44 animate-pulse rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/20"
+                key={item}
+              />
+            ))}
+          </div>
+        </div>
+      )
+    }
+
     if (activeView === 'Dashboard') {
       return renderDashboard()
     }
@@ -761,6 +1034,8 @@ export function HomeScreen() {
       return (
         <SettingsPanel
           cloudSyncStatus={cloudSyncStatus}
+          databaseTestStatus={databaseTestStatus}
+          isSyncing={syncStatus === 'syncing'}
           checklist={{
             backupCreated,
             hasRealSystem: systems.length > 0,
@@ -775,21 +1050,38 @@ export function HomeScreen() {
           onImport={importData}
           onImportStarterLinks={importStarterLinks}
           onReset={resetData}
-          onSyncCloudToLocal={() =>
+          onTestCloudDatabase={handleTestCloudDatabase}
+          googleWorkspaceMessage={googleWorkspaceMessage}
+          googleWorkspaceStatus={googleWorkspaceStatus}
+          onTestGoogleConnection={handleTestGoogleConnection}
+          onForceRefreshCloud={async () => {
+            const result = await syncCloudToLocal()
             notify(
-              cloudSyncStatus === 'connected'
-                ? 'Cloud to local sync is prepared for the next migration step'
-                : 'Supabase env missing. Local mode is active',
+              result
+                ? result.message ?? `Refreshed ${result.data.synced} cloud items`
+                : 'Cloud refresh failed',
             )
-          }
-          onSyncLocalToCloud={() =>
+          }}
+          onSyncCloudToLocal={async () => {
+            const result = await syncCloudToLocal()
             notify(
-              cloudSyncStatus === 'connected'
-                ? 'Local to cloud sync is prepared for the next migration step'
-                : 'Supabase env missing. Local mode is active',
+              result
+                ? result.message ?? `Synced ${result.data.synced} cloud items`
+                : 'Cloud sync failed',
             )
-          }
+          }}
+          onSyncLocalToCloud={async () => {
+            const result = await syncLocalToCloud()
+            notify(
+              result
+                ? result.message ?? `Synced ${result.data.synced} local items`
+                : 'Cloud sync failed',
+            )
+          }}
           onThemeChange={setTheme}
+          lastSyncedAt={lastSyncedAt}
+          syncMessage={syncMessage}
+          syncStatus={syncStatus}
           theme={theme}
         />
       )
@@ -804,17 +1096,17 @@ export function HomeScreen() {
         <SectionHeader
           action={`${pageSystems.length} systems`}
           eyebrow="Workspace"
-          title={activeView}
+          title={viewTitles[activeView] ?? activeView}
         />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {renderCards(pageSystems)}
         </div>
         {pageSystems.length === 0 ? (
           <PremiumEmptyState
-            action="Add system"
-            message="This view is ready for workspace systems when you add or categorize links."
+            action="เพิ่มระบบ"
+            message="ยังไม่มีระบบในหมวดนี้ เพิ่มหรือจัดหมวดหมู่ลิงก์เพื่อเริ่มใช้งาน."
             onAction={openAddModal}
-            title={`${activeView} is empty`}
+            title="ยังไม่มีระบบในหมวดนี้"
           />
         ) : null}
       </section>
@@ -839,7 +1131,6 @@ export function HomeScreen() {
 
         <div className="min-w-0">
           <Topbar
-            cloudSyncStatus={cloudSyncStatus}
             onCommitSearch={commitSearch}
             onMenuClick={() => setIsSidebarOpen(true)}
             onOpenSystem={handleOpenSystem}
@@ -847,13 +1138,13 @@ export function HomeScreen() {
             recentSearches={recentSearches}
             searchQuery={searchQuery}
             searchResults={searchResults}
+            syncStatus={syncStatus}
           />
 
           <section className="mx-auto w-full max-w-7xl px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:py-8">
             {renderActiveView()}
             <footer className="mt-8 pb-4 text-sm text-slate-500">
-              Local workspace OS. Systems, collections, notes, and settings are
-              saved in this browser.
+              NEXORA บันทึกระบบ กลุ่มงาน notes และ settings ใน browser นี้ พร้อม Cloud Sync เมื่อพร้อมใช้งาน.
             </footer>
           </section>
         </div>
@@ -898,7 +1189,10 @@ export function HomeScreen() {
       ) : null}
       <InstallPrompt
         canInstall={Boolean(installPromptEvent)}
+        isDismissed={isInstallDismissed}
+        isIos={isIos}
         isStandalone={isStandalone}
+        onDismiss={dismissInstallPrompt}
         onInstall={installApp}
       />
       <MobileBottomNav
@@ -912,6 +1206,50 @@ export function HomeScreen() {
         onNewNote={openNewWorkspaceNote}
         onNewSystem={openAddModal}
       />
+      {shouldPromptCloudMigration ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#020617]/70 px-4 backdrop-blur-xl">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0f172a]/95 p-5 shadow-2xl shadow-black/40">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#009FD1]">
+              Cloud Migration
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+              ย้าย workspace ในเครื่องขึ้น cloud?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Supabase พร้อมใช้งานและ cloud workspace ยังว่างอยู่ สามารถคัดลอกระบบในเครื่องขึ้น cloud โดยข้อมูล local ยังอยู่เหมือนเดิม.
+            </p>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-[#70dfff]">
+              มี {systems.length} ระบบในเครื่องพร้อมย้าย
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button
+                className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-slate-300 transition hover:text-white"
+                onClick={() => {
+                  dismissCloudMigrationPrompt()
+                  notify('Cloud migration skipped')
+                }}
+                type="button"
+              >
+                ใช้ local ต่อ
+              </button>
+              <button
+                className="rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/20 px-4 py-3 text-sm font-semibold text-[#70dfff] transition hover:bg-[#009FD1]/25"
+                onClick={async () => {
+                  const result = await syncLocalToCloud()
+                  notify(
+                    result
+                      ? result.message ?? `Migrated ${result.data.synced} items`
+                      : 'Cloud migration failed',
+                  )
+                }}
+                type="button"
+              >
+                ย้ายขึ้น cloud
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <CommandPalette
         categories={categoryViews}
         collections={collections}

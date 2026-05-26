@@ -19,16 +19,16 @@ export function CollectionPanel({
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#f05193]">
-            Folders
+            📁 Workspace
           </p>
           <h2 className="mt-1 text-xl font-semibold tracking-normal text-white">
-            Collections
+            กลุ่มงาน
           </h2>
         </div>
         <button
           className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-xs font-medium text-slate-300"
           onClick={() => {
-            const name = window.prompt('Collection name')
+            const name = window.prompt('ชื่อกลุ่มงาน')
             if (name) {
               onAddCollection(name)
             }
@@ -36,7 +36,7 @@ export function CollectionPanel({
           type="button"
         >
           <Plus size={14} />
-          Add
+          เพิ่มกลุ่ม
         </button>
       </div>
 
@@ -63,13 +63,13 @@ export function CollectionPanel({
               }}
             >
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                {total} systems
+                {total} ระบบ
               </p>
               <h3 className="mt-2 text-lg font-semibold text-white">
                 {collection.name}
               </h3>
               <p className="mt-2 text-sm text-slate-400">
-                Drag collections to reorder your workspace folders.
+                ลากเพื่อจัดลำดับกลุ่มงานที่ใช้บ่อย.
               </p>
             </article>
           )

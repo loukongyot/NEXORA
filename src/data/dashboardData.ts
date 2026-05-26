@@ -17,6 +17,7 @@ import type { LucideIcon } from 'lucide-react'
 
 export type NavigationItem = {
   label: string
+  displayLabel: string
   icon: LucideIcon
 }
 
@@ -35,17 +36,17 @@ export type QuickAction = {
 }
 
 export const navigationItems: NavigationItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard },
-  { label: 'Favorites', icon: Star },
-  { label: 'Forms', icon: FileText },
-  { label: 'Sheets', icon: FileSpreadsheet },
-  { label: 'Drive', icon: Folder },
-  { label: 'Slides', icon: Presentation },
-  { label: 'Apps Script', icon: Code2 },
-  { label: 'AI Tools', icon: Bot },
-  { label: 'Search', icon: Search },
-  { label: 'Recent', icon: Clock3 },
-  { label: 'Settings', icon: Settings },
+  { label: 'Dashboard', displayLabel: '📊 แดชบอร์ด', icon: LayoutDashboard },
+  { label: 'Favorites', displayLabel: '⭐ Starred', icon: Star },
+  { label: 'Forms', displayLabel: '📝 Forms', icon: FileText },
+  { label: 'Sheets', displayLabel: '📊 Sheets', icon: FileSpreadsheet },
+  { label: 'Drive', displayLabel: '📁 Drive', icon: Folder },
+  { label: 'Slides', displayLabel: '🖥️ Slides', icon: Presentation },
+  { label: 'Apps Script', displayLabel: '⚡ Apps Script', icon: Code2 },
+  { label: 'AI Tools', displayLabel: '🤖 AI Tools', icon: Bot },
+  { label: 'Search', displayLabel: '🔎 ค้นหา', icon: Search },
+  { label: 'Recent', displayLabel: '🕘 ล่าสุด', icon: Clock3 },
+  { label: 'Settings', displayLabel: '⚙️ ตั้งค่า', icon: Settings },
 ]
 
 export const quickActions: QuickAction[] = [

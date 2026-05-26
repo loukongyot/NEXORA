@@ -10,30 +10,37 @@ const insightStyles: Record<
     text: string
   }
 > = {
-  News: {
+  news: {
     Icon: Newspaper,
     badge: 'border-[#6b5095]/40 bg-[#6b5095]/15',
     glow: 'from-[#6b5095]/35 to-[#6b5095]/5',
     text: 'text-[#d9c7ff]',
   },
-  Prompt: {
+  prompt: {
     Icon: Bot,
     badge: 'border-[#f05193]/40 bg-[#f05193]/15',
     glow: 'from-[#f05193]/35 to-[#f05193]/5',
     text: 'text-[#ffd1e4]',
   },
-  Tip: {
+  tip: {
     Icon: Lightbulb,
     badge: 'border-[#009FD1]/40 bg-[#009FD1]/15',
     glow: 'from-[#009FD1]/35 to-[#009FD1]/5',
     text: 'text-[#70dfff]',
   },
-  Workflow: {
+  workflow: {
     Icon: Workflow,
     badge: 'border-[#ba5835]/40 bg-[#ba5835]/15',
     glow: 'from-[#ba5835]/35 to-[#ba5835]/5',
     text: 'text-[#ffb08d]',
   },
+}
+
+const insightLabels: Record<InsightKind, string> = {
+  news: 'News',
+  prompt: 'Prompt',
+  tip: 'Tip',
+  workflow: 'Workflow',
 }
 
 type InsightCardProps = {
@@ -56,7 +63,7 @@ export function InsightCard({ insight }: InsightCardProps) {
           <span
             className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${style.badge} ${style.text}`}
           >
-            {insight.kind}
+            {insightLabels[insight.kind]}
           </span>
         </div>
         <h3 className="text-lg font-semibold tracking-normal text-white">
