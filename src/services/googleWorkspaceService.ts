@@ -2,6 +2,7 @@ import {
   googleWorkspaceEnv,
   isGoogleWorkspaceConfigured,
 } from '../lib/env'
+import { safeFetchJson } from '../utils/safeFetch'
 
 export type GoogleWorkspaceStatus =
   | 'connected'
@@ -50,6 +51,24 @@ function normalizeGoogleWorkspaceData(data: Partial<GoogleWorkspaceData>) {
   }
 }
 
+function isGoogleWorkspacePayload(data: unknown): data is Partial<GoogleWorkspaceData> {
+  if (!data || typeof data !== 'object') {
+    return false
+  }
+
+  const payload = data as Partial<GoogleWorkspaceData>
+
+  return (
+    (payload.formResponsesToday === undefined ||
+      typeof payload.formResponsesToday === 'number') &&
+    (payload.latestReportTotal === undefined ||
+      typeof payload.latestReportTotal === 'number') &&
+    (payload.outputFileCount === undefined ||
+      typeof payload.outputFileCount === 'number') &&
+    (payload.latestUpdates === undefined || Array.isArray(payload.latestUpdates))
+  )
+}
+
 export async function fetchGoogleWorkspaceData(): Promise<GoogleWorkspaceResult> {
   if (!isGoogleWorkspaceConfigured) {
     return {
@@ -60,22 +79,32 @@ export async function fetchGoogleWorkspaceData(): Promise<GoogleWorkspaceResult>
   }
 
   try {
-    const response = await fetch(googleWorkspaceEnv.apiUrl, {
+    const response = await safeFetchJson<unknown>(googleWorkspaceEnv.apiUrl, {
       headers: {
         Accept: 'application/json',
       },
+      retries: 1,
+      timeoutMs: 9000,
     })
 
     if (!response.ok) {
       return {
         data: null,
-        message: `เชื่อมต่อไม่สำเร็จ (${response.status})`,
+        message: response.error || `เชื่อมต่อไม่สำเร็จ (${response.status})`,
         status: 'error',
       }
     }
 
-    const json = (await response.json()) as Partial<GoogleWorkspaceData>
-    const data = normalizeGoogleWorkspaceData(json)
+    if (!isGoogleWorkspacePayload(response.data)) {
+      return {
+        data: null,
+        message:
+          'Google Workspace API ส่งข้อมูลไม่ตรงรูปแบบ JSON ที่ NEXORA ต้องการ',
+        status: 'error',
+      }
+    }
+
+    const data = normalizeGoogleWorkspaceData(response.data)
     const hasData =
       data.formResponsesToday > 0 ||
       data.latestReportTotal > 0 ||
@@ -84,14 +113,18 @@ export async function fetchGoogleWorkspaceData(): Promise<GoogleWorkspaceResult>
 
     return {
       data,
-      message: hasData ? 'เชื่อมต่อแล้ว' : 'ยังไม่มีข้อมูลจาก Google Workspace',
+      message: hasData
+        ? 'เชื่อมต่อสำเร็จ'
+        : 'เชื่อมต่อสำเร็จ แต่ยังไม่มีข้อมูลจาก Google Workspace',
       status: hasData ? 'connected' : 'empty',
     }
   } catch (error) {
     return {
       data: emptyData,
       message:
-        error instanceof Error ? error.message : 'เชื่อมต่อ Google Workspace ไม่สำเร็จ',
+        error instanceof Error
+          ? error.message
+          : 'เชื่อมต่อ Google Workspace ไม่สำเร็จ',
       status: 'error',
     }
   }

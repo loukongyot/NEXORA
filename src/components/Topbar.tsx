@@ -2,6 +2,7 @@ import { Menu, Moon, Search, UserRound } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 import type { WorkspaceSyncStatus } from '../hooks/useWorkspaceSystems'
+import type { SystemHealthState } from '../services/systemHealthService'
 import type { WorkspaceSystem } from '../types/workspace'
 
 type TopbarProps = {
@@ -12,6 +13,7 @@ type TopbarProps = {
   recentSearches: string[]
   searchQuery: string
   searchResults: WorkspaceSystem[]
+  systemHealth?: SystemHealthState
   syncStatus: WorkspaceSyncStatus
 }
 
@@ -23,6 +25,7 @@ export function Topbar({
   recentSearches,
   searchQuery,
   searchResults,
+  systemHealth,
   syncStatus,
 }: TopbarProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -37,6 +40,14 @@ export function Topbar({
     syncing: 'กำลังซิงก์',
   }
   const isCloudHealthy = syncStatus === 'synced' || syncStatus === 'syncing'
+  const systemBadgeLabel: Record<SystemHealthState, string> = {
+    error: 'Error',
+    healthy: 'Healthy',
+    local: 'Local Mode',
+    offline: 'Offline',
+    partial: 'Partial',
+  }
+  const systemBadge = systemHealth ?? (syncStatus === 'offline' ? 'offline' : 'partial')
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -170,6 +181,22 @@ export function Topbar({
           } ${syncStatus === 'syncing' ? 'animate-pulse' : ''}`}
         >
           Cloud Sync: {syncStatusLabel[syncStatus]}
+        </div>
+
+        <div
+          className={`hidden rounded-2xl border px-3 py-2 text-xs font-semibold xl:block ${
+            systemBadge === 'healthy'
+              ? 'border-[#009FD1]/35 bg-[#009FD1]/15 text-[#70dfff]'
+              : systemBadge === 'error'
+                ? 'border-[#ba5835]/35 bg-[#ba5835]/15 text-[#ffb08d]'
+                : systemBadge === 'offline'
+                  ? 'border-white/10 bg-white/[0.06] text-slate-400'
+                  : systemBadge === 'local'
+                    ? 'border-[#6b5095]/35 bg-[#6b5095]/15 text-[#d9c7ff]'
+                    : 'border-[#f05193]/35 bg-[#f05193]/15 text-[#ffd1e4]'
+          }`}
+        >
+          System: {systemBadgeLabel[systemBadge]}
         </div>
 
         <button

@@ -29,6 +29,10 @@ import {
   type GoogleWorkspaceStatus,
 } from '../services/googleWorkspaceService'
 import {
+  runFullSystemHealthCheck,
+  type SystemHealthReport,
+} from '../services/systemHealthService'
+import {
   testSupabaseConnection,
   type DatabaseTestStatus,
 } from '../services/workspaceService'
@@ -131,6 +135,10 @@ export function HomeScreen() {
     useState<GoogleWorkspaceStatus>('missing-url')
   const [googleWorkspaceMessage, setGoogleWorkspaceMessage] =
     useState('ยังไม่ได้เชื่อมต่อ')
+  const [healthReport, setHealthReport] = useState<SystemHealthReport | null>(
+    null,
+  )
+  const [isHealthChecking, setIsHealthChecking] = useState(false)
   const toastIdRef = useRef(0)
   const lastSyncMessageRef = useRef('')
 
@@ -259,6 +267,27 @@ export function HomeScreen() {
     }
 
     void loadGoogleWorkspace()
+  }, [])
+
+  useEffect(() => {
+    async function refreshHealthOnNetworkChange() {
+      setIsHealthChecking(true)
+      try {
+        const report = await runFullSystemHealthCheck()
+        setHealthReport(report)
+      } finally {
+        setIsHealthChecking(false)
+      }
+    }
+
+    void refreshHealthOnNetworkChange()
+    window.addEventListener('online', refreshHealthOnNetworkChange)
+    window.addEventListener('offline', refreshHealthOnNetworkChange)
+
+    return () => {
+      window.removeEventListener('online', refreshHealthOnNetworkChange)
+      window.removeEventListener('offline', refreshHealthOnNetworkChange)
+    }
   }, [])
 
   useEffect(() => {
@@ -575,6 +604,27 @@ export function HomeScreen() {
     const result = await testSupabaseConnection()
     setDatabaseTestStatus(result.status)
     notify(result.message)
+  }
+
+  async function handleRunFullSystemCheck(shouldNotify = true) {
+    setIsHealthChecking(true)
+    try {
+      const report = await runFullSystemHealthCheck()
+      setHealthReport(report)
+      if (shouldNotify) {
+        notify(`System Health: ${report.overall}`)
+      }
+    } catch (error) {
+      if (shouldNotify) {
+        notify(
+          error instanceof Error
+            ? error.message
+            : 'ตรวจสถานะระบบไม่สำเร็จ',
+        )
+      }
+    } finally {
+      setIsHealthChecking(false)
+    }
   }
 
   async function refreshGoogleWorkspaceData(shouldNotify = true) {
@@ -1053,7 +1103,10 @@ export function HomeScreen() {
           onTestCloudDatabase={handleTestCloudDatabase}
           googleWorkspaceMessage={googleWorkspaceMessage}
           googleWorkspaceStatus={googleWorkspaceStatus}
+          healthReport={healthReport}
+          isHealthChecking={isHealthChecking}
           onTestGoogleConnection={handleTestGoogleConnection}
+          onRunFullSystemCheck={() => void handleRunFullSystemCheck()}
           onForceRefreshCloud={async () => {
             const result = await syncCloudToLocal()
             notify(
@@ -1138,6 +1191,7 @@ export function HomeScreen() {
             recentSearches={recentSearches}
             searchQuery={searchQuery}
             searchResults={searchResults}
+            systemHealth={healthReport?.overall}
             syncStatus={syncStatus}
           />
 
