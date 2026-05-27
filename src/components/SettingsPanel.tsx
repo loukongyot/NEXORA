@@ -15,8 +15,10 @@ import {
 import type { WorkspaceSyncStatus } from '../hooks/useWorkspaceSystems'
 import type { CloudSyncStatus } from '../lib/supabase'
 import type { GoogleWorkspaceStatus } from '../services/googleWorkspaceService'
+import type { QaReport } from '../services/qaService'
 import type { SystemHealthReport } from '../services/systemHealthService'
 import type { DatabaseTestStatus } from '../services/workspaceService'
+import { QaDashboard } from './QaDashboard'
 
 type SettingsPanelProps = {
   cloudSyncStatus: CloudSyncStatus
@@ -25,6 +27,7 @@ type SettingsPanelProps = {
   googleWorkspaceStatus: GoogleWorkspaceStatus
   healthReport: SystemHealthReport | null
   isHealthChecking: boolean
+  isQaRunning: boolean
   isSyncing: boolean
   checklist: {
     backupCreated: boolean
@@ -41,6 +44,7 @@ type SettingsPanelProps = {
   onTestCloudDatabase: () => void
   onTestGoogleConnection: () => void
   onRunFullSystemCheck: () => void
+  onRunFullQa: () => void
   onSyncCloudToLocal: () => void
   onForceRefreshCloud: () => void
   onSyncLocalToCloud: () => void
@@ -48,6 +52,8 @@ type SettingsPanelProps = {
   syncMessage: string
   syncStatus: WorkspaceSyncStatus
   lastSyncedAt: string
+  qaProgress: number
+  qaReport: QaReport | null
   theme: string
 }
 
@@ -58,6 +64,7 @@ export function SettingsPanel({
   googleWorkspaceStatus,
   healthReport,
   isHealthChecking,
+  isQaRunning,
   isSyncing,
   checklist,
   onClearRecent,
@@ -66,6 +73,7 @@ export function SettingsPanel({
   onImportStarterLinks,
   onReset,
   onRunFullSystemCheck,
+  onRunFullQa,
   onTestCloudDatabase,
   onTestGoogleConnection,
   onSyncCloudToLocal,
@@ -75,6 +83,8 @@ export function SettingsPanel({
   syncMessage,
   syncStatus,
   lastSyncedAt,
+  qaProgress,
+  qaReport,
   theme,
 }: SettingsPanelProps) {
   const checklistItems = [
@@ -138,6 +148,13 @@ export function SettingsPanel({
 
   return (
     <section className="space-y-6">
+      <QaDashboard
+        isRunning={isQaRunning}
+        onRun={onRunFullQa}
+        progress={qaProgress}
+        report={qaReport}
+      />
+
       <div className="rounded-3xl border border-white/10 bg-white/[0.075] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>

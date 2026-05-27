@@ -4,6 +4,7 @@ import { CommandPalette } from '../components/CommandPalette'
 import { DashboardCard } from '../components/DashboardCard'
 import { FloatingCreateButton } from '../components/FloatingCreateButton'
 import { GoogleDriveWorkspace } from '../components/GoogleDriveWorkspace'
+import { GooglePickerModal } from '../components/GooglePickerModal'
 import { GoogleWorkspaceWidget } from '../components/GoogleWorkspaceWidget'
 import { InstallPrompt } from '../components/InstallPrompt'
 import { InsightCard } from '../components/InsightCard'
@@ -35,6 +36,13 @@ import {
   driveFileToWorkspaceInput,
   googleLinkToDriveMetadata,
 } from '../services/googleDriveService'
+import {
+  cachePickedFiles,
+  loadCachedPickedFiles,
+  prepareGooglePicker,
+  type GooglePickerStatus,
+} from '../services/googlePickerService'
+import { runProductionQa, type QaReport } from '../services/qaService'
 import {
   runFullSystemHealthCheck,
   type SystemHealthReport,
@@ -146,10 +154,22 @@ export function HomeScreen() {
     useState('ยังไม่ได้เชื่อมต่อ')
   const [isGoogleImportOpen, setIsGoogleImportOpen] = useState(false)
   const [googleImportLinks, setGoogleImportLinks] = useState('')
+  const [isGooglePickerOpen, setIsGooglePickerOpen] = useState(false)
+  const [googlePickerFiles, setGooglePickerFiles] = useState<
+    GoogleDriveFileMetadata[]
+  >(() => loadCachedPickedFiles())
+  const [googlePickerMessage, setGooglePickerMessage] = useState(
+    'ยังไม่ได้เชื่อม Google Picker API',
+  )
+  const [googlePickerStatus, setGooglePickerStatus] =
+    useState<GooglePickerStatus>('idle')
   const [healthReport, setHealthReport] = useState<SystemHealthReport | null>(
     null,
   )
   const [isHealthChecking, setIsHealthChecking] = useState(false)
+  const [qaReport, setQaReport] = useState<QaReport | null>(null)
+  const [qaProgress, setQaProgress] = useState(0)
+  const [isQaRunning, setIsQaRunning] = useState(false)
   const toastIdRef = useRef(0)
   const lastSyncMessageRef = useRef('')
 
@@ -646,6 +666,39 @@ export function HomeScreen() {
     }
   }
 
+  async function handleRunFullQa() {
+    setIsQaRunning(true)
+    setQaProgress(0)
+    try {
+      const report = await runProductionQa(setQaProgress)
+      setQaReport(report)
+      notify('QA ตรวจเสร็จแล้ว')
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'QA ตรวจไม่สำเร็จ')
+    } finally {
+      setIsQaRunning(false)
+    }
+  }
+
+  async function handlePrepareGooglePicker() {
+    setGooglePickerStatus('connecting')
+    try {
+      const result = await prepareGooglePicker(null)
+      setGooglePickerStatus(result.status)
+      setGooglePickerMessage(result.message)
+      if (result.files.length > 0) {
+        setGooglePickerFiles(result.files)
+      }
+      notify(result.message)
+    } catch (error) {
+      setGooglePickerStatus('error')
+      const message =
+        error instanceof Error ? error.message : 'Google Picker เปิดไม่สำเร็จ'
+      setGooglePickerMessage(message)
+      notify(message)
+    }
+  }
+
   async function refreshGoogleWorkspaceData(shouldNotify = true) {
     setGoogleWorkspaceStatus('loading')
     setGoogleRealtimeStatus('fetching')
@@ -758,6 +811,9 @@ export function HomeScreen() {
     )
 
     if (addSystem(input)) {
+      const nextFiles = [file, ...googlePickerFiles.filter((item) => item.id !== file.id)]
+      setGooglePickerFiles(nextFiles)
+      cachePickedFiles(nextFiles)
       notify('เพิ่ม Google Drive file เข้า Workspace แล้ว')
     } else {
       notify('ลิงก์ Google Drive ไม่ถูกต้อง')
@@ -771,6 +827,7 @@ export function HomeScreen() {
       .filter(Boolean)
     let savedCount = 0
     let invalidCount = 0
+    const importedFiles: GoogleDriveFileMetadata[] = []
 
     links.forEach((link) => {
       const file = googleLinkToDriveMetadata(link)
@@ -782,6 +839,7 @@ export function HomeScreen() {
 
       const input = driveFileToWorkspaceInput(file, findCollectionId(file.collection))
       if (addSystem(input)) {
+        importedFiles.push(file)
         savedCount += 1
       } else {
         invalidCount += 1
@@ -790,6 +848,14 @@ export function HomeScreen() {
 
     notify(`นำเข้า Google links ${savedCount} รายการ${invalidCount ? `, ข้าม ${invalidCount}` : ''}`)
     if (savedCount > 0) {
+      const nextFiles = [
+        ...importedFiles,
+        ...googlePickerFiles.filter(
+          (file) => !importedFiles.some((item) => item.id === file.id),
+        ),
+      ]
+      setGooglePickerFiles(nextFiles)
+      cachePickedFiles(nextFiles)
       setGoogleImportLinks('')
       setIsGoogleImportOpen(false)
     }
@@ -1038,6 +1104,7 @@ export function HomeScreen() {
           data={googleWorkspaceData}
           onAttachFile={(file) => addDriveFileToWorkspace(file)}
           onImportLinks={() => setIsGoogleImportOpen(true)}
+          onOpenPicker={() => setIsGooglePickerOpen(true)}
           onPinFile={(file) => addDriveFileToWorkspace(file, { pinned: true })}
           onSaveFavorite={(file) =>
             addDriveFileToWorkspace(file, { favorite: true })
@@ -1203,8 +1270,10 @@ export function HomeScreen() {
           googleWorkspaceStatus={googleWorkspaceStatus}
           healthReport={healthReport}
           isHealthChecking={isHealthChecking}
+          isQaRunning={isQaRunning}
           onTestGoogleConnection={handleTestGoogleConnection}
           onRunFullSystemCheck={() => void handleRunFullSystemCheck()}
+          onRunFullQa={() => void handleRunFullQa()}
           onForceRefreshCloud={async () => {
             const result = await syncCloudToLocal()
             notify(
@@ -1231,6 +1300,8 @@ export function HomeScreen() {
           }}
           onThemeChange={setTheme}
           lastSyncedAt={lastSyncedAt}
+          qaProgress={qaProgress}
+          qaReport={qaReport}
           syncMessage={syncMessage}
           syncStatus={syncStatus}
           theme={theme}
@@ -1440,6 +1511,25 @@ export function HomeScreen() {
           </div>
         </div>
       ) : null}
+      <GooglePickerModal
+        files={[
+          ...(googleWorkspaceData?.latestFiles ?? []),
+          ...googlePickerFiles.filter(
+            (file) =>
+              !(googleWorkspaceData?.latestFiles ?? []).some(
+                (item) => item.id === file.id,
+              ),
+          ),
+        ]}
+        isOpen={isGooglePickerOpen}
+        message={googlePickerMessage}
+        onAttach={(file) => addDriveFileToWorkspace(file)}
+        onClose={() => setIsGooglePickerOpen(false)}
+        onFavorite={(file) => addDriveFileToWorkspace(file, { favorite: true })}
+        onPin={(file) => addDriveFileToWorkspace(file, { pinned: true })}
+        onPreparePicker={() => void handlePrepareGooglePicker()}
+        status={googlePickerStatus}
+      />
       <CommandPalette
         categories={categoryViews}
         collections={collections}

@@ -10,6 +10,7 @@ type GoogleDriveWorkspaceProps = {
   data: GoogleWorkspaceData | null
   onAttachFile: (file: GoogleDriveFileMetadata) => void
   onImportLinks: () => void
+  onOpenPicker: () => void
   onPinFile: (file: GoogleDriveFileMetadata) => void
   onSaveFavorite: (file: GoogleDriveFileMetadata) => void
 }
@@ -34,6 +35,7 @@ export function GoogleDriveWorkspace({
   data,
   onAttachFile,
   onImportLinks,
+  onOpenPicker,
   onPinFile,
   onSaveFavorite,
 }: GoogleDriveWorkspaceProps) {
@@ -70,14 +72,24 @@ export function GoogleDriveWorkspace({
               ))}
             </div>
           </div>
-          <button
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#f05193]/30 bg-[#f05193]/15 px-4 py-3 text-sm font-semibold text-[#ffd1e4] transition hover:bg-[#f05193]/20"
-            onClick={onImportLinks}
-            type="button"
-          >
-            <FilePlus2 size={17} />
-            Import Google links
-          </button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#009FD1]/30 bg-[#009FD1]/15 px-4 py-3 text-sm font-semibold text-[#70dfff] transition hover:bg-[#009FD1]/20"
+              onClick={onOpenPicker}
+              type="button"
+            >
+              <FilePlus2 size={17} />
+              Drive Picker
+            </button>
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#f05193]/30 bg-[#f05193]/15 px-4 py-3 text-sm font-semibold text-[#ffd1e4] transition hover:bg-[#f05193]/20"
+              onClick={onImportLinks}
+              type="button"
+            >
+              <FilePlus2 size={17} />
+              Import links
+            </button>
+          </div>
         </div>
 
         {files.length ? (
